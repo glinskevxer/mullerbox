@@ -9,5 +9,6 @@ policy rather than whichever one the caller happened to feel like.
 from __future__ import annotations
 
 from mullerbox.units.mass import Grams
+from mullerbox.units.percent import Percent, Points
 
-__all__ = ["Grams"]
+__all__ = ["Grams", "Percent", "Points"]
