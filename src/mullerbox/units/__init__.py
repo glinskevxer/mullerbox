@@ -11,5 +11,6 @@ from __future__ import annotations
 from mullerbox.units.mass import Grams
 from mullerbox.units.mesh import Mesh
 from mullerbox.units.percent import Percent, Points
+from mullerbox.units.pressure import Psi, WetTensile
 
-__all__ = ["Grams", "Mesh", "Percent", "Points"]
+__all__ = ["Grams", "Mesh", "Percent", "Points", "Psi", "WetTensile"]
