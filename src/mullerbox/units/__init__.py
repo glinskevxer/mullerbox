@@ -13,12 +13,15 @@ from mullerbox.units.mass import Grams
 from mullerbox.units.mesh import Mesh
 from mullerbox.units.percent import Percent, Points
 from mullerbox.units.pressure import Psi, WetTensile
+from mullerbox.units.scales import Hardness, Permeability
 from mullerbox.units.thermal import Temperature
 
 __all__ = [
     "Grams",
+    "Hardness",
     "Mesh",
     "Percent",
+    "Permeability",
     "Points",
     "Psi",
     "Seconds",
