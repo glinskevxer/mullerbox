@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
-from mullerbox.props.kind import PropertyKind, Reading
+from mullerbox.props.kind import Direction, PropertyKind, Reading, parse_property
+from mullerbox.props.result import Result, countable, latest_countable
 
-__all__ = ["PropertyKind", "Reading"]
+__all__ = [
+    "Direction",
+    "PropertyKind",
+    "Reading",
+    "Result",
+    "countable",
+    "latest_countable",
+    "parse_property",
+]
