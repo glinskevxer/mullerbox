@@ -2,6 +2,17 @@
 
 from __future__ import annotations
 
-from mullerbox.spec.pattern import PatternClass, Section
+from mullerbox.spec.band import Band, Verdict
+from mullerbox.spec.pattern import PatternClass, Section, parse_pattern_class
+from mullerbox.spec.sheet import ResolvedSpec, SpecSheet, resolve
 
-__all__ = ["PatternClass", "Section"]
+__all__ = [
+    "Band",
+    "PatternClass",
+    "ResolvedSpec",
+    "Section",
+    "SpecSheet",
+    "Verdict",
+    "parse_pattern_class",
+    "resolve",
+]
