@@ -149,3 +149,17 @@ class TestPresentation:
 
     def test_a_floor_reads_as_at_least(self) -> None:
         assert str(Band.at_least(GCS, Psi(18))) == "green compression strength at least 18.0 psi"
+
+
+class TestTheGuardedLimits:
+    def test_floor_and_ceiling_hand_back_the_limits(self) -> None:
+        assert comp_band().floor == Percent(38)
+        assert comp_band().ceiling == Percent(44)
+
+    def test_a_missing_floor_is_refused_by_name(self) -> None:
+        with pytest.raises(BadInputError, match="loss on ignition band has no lower"):
+            assert Band.at_most(LOI, Percent("3.5")).floor
+
+    def test_a_missing_ceiling_is_refused_by_name(self) -> None:
+        with pytest.raises(BadInputError, match="green compression .* has no upper"):
+            assert Band.at_least(GCS, Psi(18)).ceiling

@@ -99,6 +99,26 @@ class Band:
         return self.low is not None and self.high is not None
 
     @property
+    def floor(self) -> Reading:
+        """The low limit of a band that has one.
+
+        Worth having next to ``low`` because most callers already know the band
+        is two ended and only want the number. Reaching through ``low`` forces
+        every one of them to write the same None check, and a caller that writes
+        it once carelessly gets a comparison against None rather than a refusal.
+        """
+        if self.low is None:
+            raise BadInputError(f"the {self.kind.label} band has no lower limit")
+        return self.low
+
+    @property
+    def ceiling(self) -> Reading:
+        """The high limit of a band that has one."""
+        if self.high is None:
+            raise BadInputError(f"the {self.kind.label} band has no upper limit")
+        return self.high
+
+    @property
     def midpoint(self) -> Reading:
         """The aim, which only exists when the band has two ends."""
         if self.low is None or self.high is None:
