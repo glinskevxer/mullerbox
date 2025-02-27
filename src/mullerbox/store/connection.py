@@ -83,17 +83,28 @@ class Book:
     def write(self) -> Iterator[Book]:
         """One transaction, committed on the way out and rolled back on a raise.
 
-        sqlite3's own context manager commits but does not close and does not
-        begin, which surprises callers in both directions. This one is explicit
-        about the boundary so that a repository method can be composed into a
-        larger unit of work without either nesting a commit or losing one.
+        The explicit ``BEGIN`` is the load bearing line. Under the default
+        legacy transaction control, Python's sqlite3 opens a transaction for
+        DML and **not** for DDL, so a ``CREATE TABLE`` runs in autocommit and
+        survives a rollback that was supposed to undo it. A migration that fails
+        halfway then leaves its tables standing while the version stays where it
+        was, which is the one outcome a migration runner exists to prevent.
+        sqlite itself has transactional DDL; only the driver's default declines
+        to use it.
+
+        The guard on ``in_transaction`` lets a repository method compose into a
+        larger unit of work without nesting a second BEGIN, which sqlite refuses.
         """
+        opened_here = not self.connection.in_transaction
+        if opened_here:
+            self.connection.execute("BEGIN")
         try:
             yield self
         except Exception:
             self.connection.rollback()
             raise
-        self.connection.commit()
+        if opened_here:
+            self.connection.commit()
 
     def close(self) -> None:
         self.connection.close()

@@ -1,0 +1,174 @@
+"""Schema migrations, applied in order and recorded as they go.
+
+Forward only, and deliberately. A rollback needs a down step that is tested,
+and a down step is only ever tested by running it, which nobody does on a
+foundry's book at two in the morning. What gets used instead is a restore from
+last night's file, so the down steps rot quietly until the one time they are
+needed. Not having them is more honest.
+
+Two properties are checked before anything is applied, not asserted in a
+comment. Versions have to run from one with no gaps and no repeats, because a
+gap means a migration was deleted rather than superseded and a repeat means two
+branches both took the next number. Either way applying them in the order they
+happen to be listed produces a schema that matches nobody's expectation, and the
+check is four lines.
+
+Each migration runs inside one transaction with its bookkeeping row, so a
+migration that fails halfway leaves the book on the previous version rather than
+on a version that is recorded but only partly there.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import UTC, datetime
+
+from mullerbox.errors import ConfigError
+from mullerbox.store.connection import Book
+
+BOOKKEEPING = """
+CREATE TABLE IF NOT EXISTS schema_migration (
+    version    INTEGER PRIMARY KEY,
+    name       TEXT NOT NULL,
+    applied_at TEXT NOT NULL
+)
+"""
+
+
+@dataclass(frozen=True)
+class Migration:
+    """One numbered step, and the statements that make it."""
+
+    version: int
+    name: str
+    statements: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if self.version < 1:
+            raise ConfigError("migrations are numbered from one")
+        if not self.name.strip():
+            raise ConfigError(f"migration {self.version} has no name")
+        if not self.statements:
+            raise ConfigError(f"migration {self.version} does nothing")
+
+
+MIGRATIONS: tuple[Migration, ...] = (
+    Migration(
+        version=1,
+        name="screen series and instruments",
+        statements=(
+            """
+            CREATE TABLE screen_series (
+                name TEXT PRIMARY KEY
+            )
+            """,
+            """
+            CREATE TABLE screen_step (
+                series_name TEXT NOT NULL REFERENCES screen_series (name),
+                position    INTEGER NOT NULL,
+                mesh_number INTEGER NOT NULL,
+                micrometres INTEGER NOT NULL,
+                multiplier  INTEGER NOT NULL,
+                PRIMARY KEY (series_name, position)
+            )
+            """,
+            """
+            CREATE UNIQUE INDEX screen_step_mesh
+                ON screen_step (series_name, mesh_number)
+            """,
+            """
+            CREATE TABLE instrument (
+                tag  TEXT PRIMARY KEY,
+                kind TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE calibration (
+                certificate    TEXT PRIMARY KEY,
+                instrument_tag TEXT NOT NULL REFERENCES instrument (tag),
+                calibrated_on  TEXT NOT NULL,
+                due_on         TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX calibration_by_instrument
+                ON calibration (instrument_tag, calibrated_on)
+            """,
+        ),
+    ),
+)
+
+
+def _check_the_list(migrations: tuple[Migration, ...]) -> None:
+    versions = [m.version for m in migrations]
+    if versions != sorted(versions):
+        raise ConfigError("the migrations are not in version order")
+    if len(set(versions)) != len(versions):
+        raise ConfigError("two migrations share a version number")
+    expected = list(range(1, len(versions) + 1))
+    if versions != expected:
+        raise ConfigError(f"the migrations run {versions}, which is not a run from one")
+
+
+def current_version(book: Book) -> int:
+    """The highest migration applied, or zero on an untouched book."""
+    book.execute(BOOKKEEPING)
+    highest = book.scalar("SELECT max(version) FROM schema_migration")
+    return 0 if highest is None else int(str(highest))
+
+
+def applied(book: Book) -> list[tuple[int, str]]:
+    """Every migration on the book, in the order it was applied."""
+    book.execute(BOOKKEEPING)
+    rows = book.all("SELECT version, name FROM schema_migration ORDER BY version")
+    return [(int(r["version"]), str(r["name"])) for r in rows]
+
+
+def pending(book: Book, migrations: tuple[Migration, ...] = MIGRATIONS) -> list[Migration]:
+    _check_the_list(migrations)
+    at = current_version(book)
+    return [m for m in migrations if m.version > at]
+
+
+def migrate(book: Book, migrations: tuple[Migration, ...] = MIGRATIONS) -> list[int]:
+    """Apply everything outstanding. Returns the versions applied, in order."""
+    if not isinstance(book, Book):
+        raise ConfigError("migrations run against an open book")
+    _check_the_list(migrations)
+    at = current_version(book)
+    done: list[int] = []
+    for migration in migrations:
+        if migration.version <= at:
+            continue
+        with book.write():
+            for statement in migration.statements:
+                book.execute(statement)
+            book.execute(
+                "INSERT INTO schema_migration (version, name, applied_at) VALUES (?, ?, ?)",
+                (
+                    migration.version,
+                    migration.name,
+                    datetime.now(UTC).isoformat(timespec="seconds"),
+                ),
+            )
+        done.append(migration.version)
+    return done
+
+
+def require_current(book: Book, migrations: tuple[Migration, ...] = MIGRATIONS) -> None:
+    """Refuse to work against a book that is behind the code."""
+    outstanding = pending(book, migrations)
+    if outstanding:
+        names = ", ".join(str(m.version) for m in outstanding)
+        raise ConfigError(f"the book is behind: migrations {names} have not been applied")
+
+
+__all__ = [
+    "MIGRATIONS",
+    "Migration",
+    "applied",
+    "current_version",
+    "migrate",
+    "pending",
+    "require_current",
+]

@@ -151,3 +151,38 @@ class TestTransactions:
                 insert_then_fail()
         with open_book(target) as book:
             assert book.scalar("SELECT count(*) FROM t") == 0
+
+
+class TestDdlIsInsideTheTransaction:
+    def test_a_created_table_is_rolled_back(self) -> None:
+        with open_book() as book:
+
+            def create_then_fail() -> None:
+                with book.write():
+                    book.execute("CREATE TABLE gone (a INTEGER)")
+                    raise RuntimeError("boom")
+
+            with pytest.raises(RuntimeError, match="boom"):
+                create_then_fail()
+            assert "gone" not in book.tables
+
+    def test_a_created_table_survives_a_clean_exit(self) -> None:
+        with open_book() as book:
+            with book.write():
+                book.execute("CREATE TABLE kept (a INTEGER)")
+            assert "kept" in book.tables
+
+    def test_nested_write_blocks_commit_once_at_the_outer_boundary(self) -> None:
+        with open_book() as book:
+
+            def inner_then_fail() -> None:
+                with book.write():
+                    book.execute("CREATE TABLE outer_t (a INTEGER)")
+                    with book.write():
+                        book.execute("CREATE TABLE inner_t (a INTEGER)")
+                    raise RuntimeError("boom")
+
+            with pytest.raises(RuntimeError, match="boom"):
+                inner_then_fail()
+            assert "inner_t" not in book.tables
+            assert "outer_t" not in book.tables
