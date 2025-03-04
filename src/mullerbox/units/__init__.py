@@ -8,6 +8,7 @@ policy rather than whichever one the caller happened to feel like.
 
 from __future__ import annotations
 
+from mullerbox.units.bulk import Pounds
 from mullerbox.units.duration import Seconds
 from mullerbox.units.mass import Grams
 from mullerbox.units.mesh import Mesh
@@ -23,6 +24,7 @@ __all__ = [
     "Percent",
     "Permeability",
     "Points",
+    "Pounds",
     "Psi",
     "Seconds",
     "Temperature",
