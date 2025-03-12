@@ -135,3 +135,13 @@ class TestPercentProtocol:
 
     def test_str_carries_the_sign(self) -> None:
         assert str(Percent("3.25")) == "3.25%"
+
+
+class TestBooleansAreNotPercentages:
+    def test_true_is_not_one_percent(self) -> None:
+        with pytest.raises(BadInputError, match="from a boolean"):
+            Percent(True)
+
+    def test_a_flag_cannot_become_points(self) -> None:
+        with pytest.raises(BadInputError, match="from a boolean"):
+            Points(True)

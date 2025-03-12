@@ -12,11 +12,12 @@ types that do not compare against each other.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal
 from functools import total_ordering
 from typing import Any
 
 from mullerbox.errors import BadInputError
+from mullerbox.units.coerce import to_decimal
 
 PSI_PLACES = Decimal("0.1")
 WET_TENSILE_PLACES = Decimal("0.01")
@@ -27,24 +28,11 @@ MAX_PSI = Decimal("1000")
 MAX_WET_TENSILE = Decimal("100")
 
 
+SUFFIXES = ("psi", "g/cm2", "g/cm^2", "gcm2")
+
+
 def _decimal_from(value: object, what: str) -> Decimal:
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, bool):
-        raise BadInputError(f"cannot read {what} from a boolean")
-    if isinstance(value, int):
-        return Decimal(value)
-    if isinstance(value, float):
-        return Decimal(repr(value))
-    if isinstance(value, str):
-        text = value.strip().lower()
-        for suffix in ("psi", "g/cm2", "g/cm^2", "gcm2"):
-            text = text.removesuffix(suffix).strip()
-        try:
-            return Decimal(text)
-        except InvalidOperation:
-            raise BadInputError(f"{value!r} is not {what}") from None
-    raise BadInputError(f"cannot read {what} from {type(value).__name__}")
+    return to_decimal(value, what, suffixes=SUFFIXES)
 
 
 @total_ordering

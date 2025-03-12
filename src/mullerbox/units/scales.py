@@ -16,29 +16,17 @@ this whole package exists to prevent. Neither will compare against the other.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal
 from functools import total_ordering
 from typing import Any
 
 from mullerbox.errors import BadInputError
+from mullerbox.units.coerce import to_decimal, to_int
 
 # Green sand runs 50 to 150 AFS. A number past a thousand is the meter left on
 # the wrong orifice, which reads high by about an order of magnitude.
 MAX_PERMEABILITY = 1000
 MAX_HARDNESS = Decimal("100")
-
-
-def _int_from(value: object, what: str) -> int:
-    if isinstance(value, bool):
-        raise BadInputError(f"cannot read {what} from a boolean")
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str):
-        try:
-            return int(value.strip())
-        except ValueError:
-            raise BadInputError(f"{value!r} is not {what}") from None
-    raise BadInputError(f"cannot read {what} from {type(value).__name__}")
 
 
 @total_ordering
@@ -49,7 +37,7 @@ class Permeability:
     value: int
 
     def __init__(self, value: object) -> None:
-        number = _int_from(value, "a permeability number")
+        number = to_int(value, "a permeability number")
         if number < 0:
             raise BadInputError("a permeability number cannot be negative")
         if number > MAX_PERMEABILITY:
@@ -86,22 +74,7 @@ class Hardness:
     value: Decimal
 
     def __init__(self, value: object) -> None:
-        if isinstance(value, Decimal):
-            reading = value
-        elif isinstance(value, bool):
-            raise BadInputError("cannot read a hardness from a boolean")
-        elif isinstance(value, int):
-            reading = Decimal(value)
-        elif isinstance(value, float):
-            reading = Decimal(repr(value))
-        elif isinstance(value, str):
-            try:
-                reading = Decimal(value.strip())
-            except InvalidOperation:
-                raise BadInputError(f"{value!r} is not a hardness") from None
-        else:
-            raise BadInputError(f"cannot read a hardness from {type(value).__name__}")
-        reading = reading.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+        reading = to_decimal(value, "a hardness").quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
         if reading < 0:
             raise BadInputError("a hardness cannot be negative")
         if reading > MAX_HARDNESS:

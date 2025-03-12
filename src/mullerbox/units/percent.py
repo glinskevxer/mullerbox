@@ -12,30 +12,19 @@ different return type from the operands.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal
 from functools import total_ordering
 from typing import Any
 
 from mullerbox.errors import BadInputError
+from mullerbox.units.coerce import to_decimal
 
 PLACES = Decimal("0.01")
 POINT_PLACES = Decimal("0.01")
 
 
 def _decimal_from(value: object) -> Decimal:
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, int):
-        return Decimal(value)
-    if isinstance(value, float):
-        return Decimal(repr(value))
-    if isinstance(value, str):
-        text = value.strip().removesuffix("%").strip()
-        try:
-            return Decimal(text)
-        except InvalidOperation:
-            raise BadInputError(f"{value!r} is not a percentage") from None
-    raise BadInputError(f"cannot read a percentage from {type(value).__name__}")
+    return to_decimal(value, "a percentage", suffixes=("%",))
 
 
 @total_ordering

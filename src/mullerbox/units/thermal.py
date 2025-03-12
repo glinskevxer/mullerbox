@@ -14,11 +14,12 @@ remember which column it read.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal
 from functools import total_ordering
 from typing import Any
 
 from mullerbox.errors import BadInputError
+from mullerbox.units.coerce import to_decimal
 
 PLACES = Decimal("0.1")
 ABSOLUTE_ZERO_C = Decimal("-273.15")
@@ -29,22 +30,7 @@ MAX_CELSIUS = Decimal("1500")
 
 
 def _decimal_from(value: object) -> Decimal:
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, bool):
-        raise BadInputError("cannot read a temperature from a boolean")
-    if isinstance(value, int):
-        return Decimal(value)
-    if isinstance(value, float):
-        return Decimal(repr(value))
-    if isinstance(value, str):
-        text = value.strip().upper().removesuffix("C").removesuffix("F").strip()
-        text = text.removesuffix("DEG").strip()
-        try:
-            return Decimal(text)
-        except InvalidOperation:
-            raise BadInputError(f"{value!r} is not a temperature") from None
-    raise BadInputError(f"cannot read a temperature from {type(value).__name__}")
+    return to_decimal(value, "a temperature", suffixes=("c", "f", "deg"))
 
 
 @total_ordering

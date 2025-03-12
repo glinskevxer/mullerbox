@@ -130,3 +130,13 @@ class TestProtocol:
 
     def test_grams_property_is_a_quantised_decimal(self) -> None:
         assert Grams("1.5").grams == Decimal("1.50")
+
+
+class TestBooleansAreNotMasses:
+    def test_true_is_not_one_gram(self) -> None:
+        with pytest.raises(BadInputError, match="from a boolean"):
+            Grams(True)
+
+    def test_false_is_not_zero_grams(self) -> None:
+        with pytest.raises(BadInputError, match="from a boolean"):
+            Grams(False)

@@ -21,11 +21,12 @@ this is an American foundry and the long ton has never been in the building.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal
 from functools import total_ordering
 from typing import Any
 
 from mullerbox.errors import BadInputError
+from mullerbox.units.coerce import to_decimal
 
 POUNDS_PER_TON = Decimal("2000")
 PLACES = Decimal("0.01")
@@ -35,24 +36,11 @@ PLACES = Decimal("0.01")
 MAX_POUNDS = Decimal("1000000")
 
 
+SUFFIXES = ("pounds", "lbs", "lb", "#")
+
+
 def _decimal_from(value: object) -> Decimal:
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, bool):
-        raise BadInputError("cannot read a bulk mass from a boolean")
-    if isinstance(value, int):
-        return Decimal(value)
-    if isinstance(value, float):
-        return Decimal(repr(value))
-    if isinstance(value, str):
-        text = value.strip().lower()
-        for suffix in ("pounds", "lbs", "lb", "#"):
-            text = text.removesuffix(suffix).strip()
-        try:
-            return Decimal(text.replace(",", ""))
-        except InvalidOperation:
-            raise BadInputError(f"{value!r} is not a bulk mass") from None
-    raise BadInputError(f"cannot read a bulk mass from {type(value).__name__}")
+    return to_decimal(value, "a bulk mass", suffixes=SUFFIXES, strip_commas=True)
 
 
 @total_ordering

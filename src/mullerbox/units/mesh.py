@@ -20,6 +20,7 @@ from functools import total_ordering
 from typing import Any
 
 from mullerbox.errors import BadInputError
+from mullerbox.units.coerce import to_int
 
 # The pan sits under the stack and has no opening at all. It is a screen for
 # every purpose except sieving, so it needs a place in the ordering, and zero
@@ -29,25 +30,6 @@ PAN_LABEL = "PAN"
 
 MIN_MESH = 3
 MAX_MESH = 400
-
-
-def _article(word: str) -> str:
-    return "an" if word[:1] in "aeiou" else "a"
-
-
-def _int_from(value: object, what: str) -> int:
-    art = _article(what)
-    if isinstance(value, bool):
-        raise BadInputError(f"cannot read {art} {what} from a boolean")
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str):
-        text = value.strip()
-        try:
-            return int(text)
-        except ValueError:
-            raise BadInputError(f"{value!r} is not {art} {what}") from None
-    raise BadInputError(f"cannot read {art} {what} from {type(value).__name__}")
 
 
 @total_ordering
@@ -66,8 +48,8 @@ class Mesh:
     micrometres: int
 
     def __init__(self, number: object, micrometres: object) -> None:
-        num = _int_from(number, "mesh number")
-        aperture = _int_from(micrometres, "aperture")
+        num = to_int(number, "a mesh number")
+        aperture = to_int(micrometres, "an aperture")
         if num == PAN_MESH:
             if aperture != 0:
                 raise BadInputError("the pan has no aperture")

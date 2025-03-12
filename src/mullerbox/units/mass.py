@@ -15,11 +15,12 @@ tenth screen of a stack can retain well under a gram.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal
 from functools import total_ordering
 from typing import Any
 
 from mullerbox.errors import BadInputError
+from mullerbox.units.coerce import to_decimal
 
 CENTIGRAM = Decimal("0.01")
 
@@ -31,22 +32,8 @@ IMPLAUSIBLE_GRAMS = Decimal("100000")
 def _centigrams_from(value: object) -> int:
     if isinstance(value, Grams):
         return value.centigrams
-    if isinstance(value, int):
-        return value * 100
-    if isinstance(value, Decimal):
-        return int(value.quantize(CENTIGRAM, rounding=ROUND_HALF_UP) * 100)
-    if isinstance(value, float):
-        # Pinned through repr so 12.005 does not arrive as 12.004999999999999
-        # and round down at the boundary the lab cares about.
-        return int(Decimal(repr(value)).quantize(CENTIGRAM, rounding=ROUND_HALF_UP) * 100)
-    if isinstance(value, str):
-        text = value.strip().lower().removesuffix("g").strip()
-        try:
-            amount = Decimal(text)
-        except InvalidOperation:
-            raise BadInputError(f"{value!r} is not a mass") from None
-        return int(amount.quantize(CENTIGRAM, rounding=ROUND_HALF_UP) * 100)
-    raise BadInputError(f"cannot read a mass from {type(value).__name__}")
+    amount = to_decimal(value, "a mass", suffixes=("g",))
+    return int(amount.quantize(CENTIGRAM, rounding=ROUND_HALF_UP) * 100)
 
 
 @total_ordering
