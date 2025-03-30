@@ -98,4 +98,4 @@ class Hardness:
         return NotImplemented
 
 
-__all__ = ["MAX_HARDNESS", "MAX_PERMEABILITY", "Hardness", "Permeability"]
+__all__ = ["Hardness", "MAX_HARDNESS", "MAX_PERMEABILITY", "Permeability"]

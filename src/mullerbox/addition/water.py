@@ -41,7 +41,7 @@ EVAPORATION_ONSET_C = Decimal("50")
 ALLOWANCE_PER_DEGREE = Decimal("0.015")
 MAX_ALLOWANCE = Decimal("0.30")
 
-PLACES = Decimal("0.0001")
+_PLACES = Decimal("0.0001")
 
 
 @dataclass(frozen=True)
@@ -130,7 +130,7 @@ def water_for(
                 f"compactability {measured} is at or above the target of {target}",
             ),
         )
-    moisture_needed = (shortfall.value / response).quantize(PLACES, rounding=ROUND_HALF_UP)
+    moisture_needed = (shortfall.value / response).quantize(_PLACES, rounding=ROUND_HALF_UP)
     charged = system_mass.scaled(moisture_needed / Decimal(100) * (Decimal(1) + allowance))
     return WaterCall(
         measured=measured,

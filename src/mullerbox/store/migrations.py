@@ -26,7 +26,7 @@ from datetime import UTC, datetime
 from mullerbox.errors import ConfigError
 from mullerbox.store.connection import Book
 
-BOOKKEEPING = """
+_BOOKKEEPING = """
 CREATE TABLE IF NOT EXISTS schema_migration (
     version    INTEGER PRIMARY KEY,
     name       TEXT NOT NULL,
@@ -112,14 +112,14 @@ def _check_the_list(migrations: tuple[Migration, ...]) -> None:
 
 def current_version(book: Book) -> int:
     """The highest migration applied, or zero on an untouched book."""
-    book.execute(BOOKKEEPING)
+    book.execute(_BOOKKEEPING)
     highest = book.scalar("SELECT max(version) FROM schema_migration")
     return 0 if highest is None else int(str(highest))
 
 
 def applied(book: Book) -> list[tuple[int, str]]:
     """Every migration on the book, in the order it was applied."""
-    book.execute(BOOKKEEPING)
+    book.execute(_BOOKKEEPING)
     rows = book.all("SELECT version, name FROM schema_migration ORDER BY version")
     return [(int(r["version"]), str(r["name"])) for r in rows]
 

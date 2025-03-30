@@ -28,11 +28,11 @@ MAX_PSI = Decimal("1000")
 MAX_WET_TENSILE = Decimal("100")
 
 
-SUFFIXES = ("psi", "g/cm2", "g/cm^2", "gcm2")
+_SUFFIXES = ("psi", "g/cm2", "g/cm^2", "gcm2")
 
 
 def _decimal_from(value: object, what: str) -> Decimal:
-    return to_decimal(value, what, suffixes=SUFFIXES)
+    return to_decimal(value, what, suffixes=_SUFFIXES)
 
 
 @total_ordering
@@ -141,7 +141,7 @@ __all__ = [
     "MAX_PSI",
     "MAX_WET_TENSILE",
     "PSI_PLACES",
-    "WET_TENSILE_PLACES",
     "Psi",
+    "WET_TENSILE_PLACES",
     "WetTensile",
 ]

@@ -36,11 +36,11 @@ PLACES = Decimal("0.01")
 MAX_POUNDS = Decimal("1000000")
 
 
-SUFFIXES = ("pounds", "lbs", "lb", "#")
+_SUFFIXES = ("pounds", "lbs", "lb", "#")
 
 
 def _decimal_from(value: object) -> Decimal:
-    return to_decimal(value, "a bulk mass", suffixes=SUFFIXES, strip_commas=True)
+    return to_decimal(value, "a bulk mass", suffixes=_SUFFIXES, strip_commas=True)
 
 
 @total_ordering
@@ -141,4 +141,4 @@ def total_pounds(masses: list[Pounds]) -> Pounds:
     return Pounds(running)
 
 
-__all__ = ["MAX_POUNDS", "POUNDS_PER_TON", "Pounds", "total_pounds"]
+__all__ = ["MAX_POUNDS", "PLACES", "POUNDS_PER_TON", "Pounds", "total_pounds"]

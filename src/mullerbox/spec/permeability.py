@@ -112,8 +112,8 @@ def expected_permeability(resolved: ResolvedSpec, distribution: Distribution) ->
 
 __all__ = [
     "AFS_PER_GFN",
+    "Expectation",
     "GRADING_SHIFT",
     "REFERENCE_GFN",
-    "Expectation",
     "expected_permeability",
 ]

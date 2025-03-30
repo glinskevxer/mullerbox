@@ -131,11 +131,11 @@ def grade(fineness: Fineness) -> Distribution:
 
 
 __all__ = [
+    "Distribution",
     "FINES_SCREENS",
     "FOUR_SCREEN_SHARE",
-    "THREE_SCREEN_SHARE",
-    "Distribution",
     "Grading",
+    "THREE_SCREEN_SHARE",
     "Window",
     "grade",
 ]

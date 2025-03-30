@@ -35,7 +35,7 @@ from mullerbox.units.percent import Percent, Points
 # shift's own lustrous carbon will push LOI up on its own.
 HEADROOM = Decimal("0.85")
 
-PLACES = Decimal("0.01")
+_PLACES = Decimal("0.01")
 
 
 @dataclass(frozen=True)
@@ -61,7 +61,7 @@ def aim_under(ceiling: Percent) -> Percent:
     """Where to land, given a ceiling you must not reach."""
     if not isinstance(ceiling, Percent):
         raise BadInputError("an LOI ceiling is a percentage")
-    return Percent((ceiling.value * HEADROOM).quantize(PLACES, rounding=ROUND_HALF_UP))
+    return Percent((ceiling.value * HEADROOM).quantize(_PLACES, rounding=ROUND_HALF_UP))
 
 
 def seacoal_for(
@@ -130,4 +130,4 @@ def seacoal_for(
     )
 
 
-__all__ = ["HEADROOM", "CarbonCall", "aim_under", "seacoal_for"]
+__all__ = ["CarbonCall", "HEADROOM", "aim_under", "seacoal_for"]

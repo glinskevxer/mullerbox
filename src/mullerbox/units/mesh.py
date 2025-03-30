@@ -121,11 +121,4 @@ def parse_mesh_label(text: str, micrometres: object) -> Mesh:
     return Mesh(number, micrometres)
 
 
-__all__ = [
-    "MAX_MESH",
-    "MIN_MESH",
-    "PAN_LABEL",
-    "PAN_MESH",
-    "Mesh",
-    "parse_mesh_label",
-]
+__all__ = ["MAX_MESH", "MIN_MESH", "Mesh", "PAN_LABEL", "PAN_MESH", "parse_mesh_label"]

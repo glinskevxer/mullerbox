@@ -40,7 +40,7 @@ from mullerbox.units.percent import Percent
 # answer is a planned changeout rather than an addition.
 MAX_REPLACEMENT_SHARE = Decimal("0.15")
 
-PLACES = Decimal("0.000001")
+_PLACES = Decimal("0.000001")
 
 
 def dead_clay(total: Percent, live: Percent) -> Percent:
@@ -91,7 +91,9 @@ def share_to_reach(current: Percent, target: Percent) -> Decimal:
         return Decimal(0)
     if target >= current:
         return Decimal(0)
-    return ((current.value - target.value) / current.value).quantize(PLACES, rounding=ROUND_HALF_UP)
+    return ((current.value - target.value) / current.value).quantize(
+        _PLACES, rounding=ROUND_HALF_UP
+    )
 
 
 def new_sand_for(

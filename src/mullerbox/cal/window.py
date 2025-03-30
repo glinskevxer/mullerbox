@@ -99,4 +99,4 @@ class CalibrationWindow:
         return f"{self.certificate} {self.calibrated_on} to {self.last_good_day}"
 
 
-__all__ = ["MAX_INTERVAL_DAYS", "CalibrationWindow"]
+__all__ = ["CalibrationWindow", "MAX_INTERVAL_DAYS"]

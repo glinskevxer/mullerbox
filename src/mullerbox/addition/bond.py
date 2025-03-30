@@ -39,7 +39,7 @@ SEVERITY_LIFT = Decimal("0.06")
 # will not compact.
 MAX_LIFT = Decimal("0.25")
 
-PLACES = Decimal("0.01")
+_PLACES = Decimal("0.01")
 
 
 @dataclass(frozen=True)
@@ -77,7 +77,9 @@ def working_target(published: Percent, severity: object) -> Percent:
     lift = over_reference * SEVERITY_LIFT
     if lift > MAX_LIFT:
         lift = MAX_LIFT
-    return Percent((published.value * (Decimal(1) + lift)).quantize(PLACES, rounding=ROUND_HALF_UP))
+    return Percent(
+        (published.value * (Decimal(1) + lift)).quantize(_PLACES, rounding=ROUND_HALF_UP)
+    )
 
 
 def bentonite_for(
@@ -139,10 +141,4 @@ def bentonite_for(
     )
 
 
-__all__ = [
-    "MAX_LIFT",
-    "SEVERITY_LIFT",
-    "BondCall",
-    "bentonite_for",
-    "working_target",
-]
+__all__ = ["BondCall", "MAX_LIFT", "SEVERITY_LIFT", "bentonite_for", "working_target"]

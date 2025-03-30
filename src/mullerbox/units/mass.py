@@ -155,4 +155,4 @@ def total(masses: list[Grams]) -> Grams:
     return Grams.from_centigrams(running)
 
 
-__all__ = ["CENTIGRAM", "IMPLAUSIBLE_GRAMS", "Grams", "total"]
+__all__ = ["CENTIGRAM", "Grams", "IMPLAUSIBLE_GRAMS", "total"]

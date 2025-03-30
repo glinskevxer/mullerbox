@@ -104,4 +104,4 @@ def fineness_of(analysis: SieveAnalysis) -> Fineness:
     return Fineness(value=value, spread=spread)
 
 
-__all__ = ["PLACES", "TYPICAL_HIGH", "TYPICAL_LOW", "Fineness", "fineness_of"]
+__all__ = ["Fineness", "PLACES", "TYPICAL_HIGH", "TYPICAL_LOW", "fineness_of"]

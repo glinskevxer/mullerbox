@@ -167,4 +167,4 @@ class Cycle:
         )
 
 
-__all__ = ["MAX_ADDITION_SHARE", "MIN_DRY_MULL", "MIN_WET_MULL", "Cycle", "Stage"]
+__all__ = ["Cycle", "MAX_ADDITION_SHARE", "MIN_DRY_MULL", "MIN_WET_MULL", "Stage"]

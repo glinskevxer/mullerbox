@@ -45,7 +45,7 @@ CLAY_MAX_DEAD_SHARE = Decimal("0.28")
 CARBON_HOT_SHARE_AT_UNITY = Decimal("1.20")
 CARBON_MAX_BURNT_SHARE = Decimal("0.55")
 
-PLACES = Decimal("0.01")
+_PLACES = Decimal("0.01")
 
 
 @dataclass(frozen=True)
@@ -100,16 +100,16 @@ def burnout_of(pour: Pour, live_clay: Percent, carbon: Percent) -> Burnout:
         pour=pour,
         dead_clay_share=clay_share,
         burnt_carbon_share=carbon_share,
-        clay_lost=Points((live_clay.value * clay_share).quantize(PLACES, rounding=ROUND_HALF_UP)),
-        carbon_lost=Points((carbon.value * carbon_share).quantize(PLACES, rounding=ROUND_HALF_UP)),
+        clay_lost=Points((live_clay.value * clay_share).quantize(_PLACES, rounding=ROUND_HALF_UP)),
+        carbon_lost=Points((carbon.value * carbon_share).quantize(_PLACES, rounding=ROUND_HALF_UP)),
     )
 
 
 __all__ = [
+    "Burnout",
     "CARBON_HOT_SHARE_AT_UNITY",
     "CARBON_MAX_BURNT_SHARE",
     "CLAY_HOT_SHARE_AT_UNITY",
     "CLAY_MAX_DEAD_SHARE",
-    "Burnout",
     "burnout_of",
 ]

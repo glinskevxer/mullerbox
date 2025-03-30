@@ -135,4 +135,4 @@ def open_book(path: str | Path = IN_MEMORY) -> Iterator[Book]:
         connection.close()
 
 
-__all__ = ["BUSY_TIMEOUT_MS", "IN_MEMORY", "Book", "open_book"]
+__all__ = ["BUSY_TIMEOUT_MS", "Book", "IN_MEMORY", "open_book"]

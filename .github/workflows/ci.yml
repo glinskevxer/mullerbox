@@ -1,0 +1,88 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install ruff
+        run: python -m pip install ruff==0.9.7
+      - name: ruff check
+        run: ruff check .
+      - name: ruff format
+        run: ruff format --check .
+
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install
+        run: python -m pip install -e ".[dev]"
+      - name: mypy
+        run: mypy
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: install
+        run: python -m pip install -e ".[dev]"
+      - name: pytest
+        run: pytest -q --cov --cov-report=term-missing --cov-fail-under=95
+
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install
+        run: python -m pip install -e ".[dev]"
+      - name: exports are consistent
+        run: python -m mullerbox.tools.check_exports
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install build
+        run: python -m pip install build==1.2.2.post1
+      - name: build the wheel
+        run: python -m build --wheel
+      - name: install the wheel into a clean environment
+        run: |
+          python -m venv /tmp/fresh
+          /tmp/fresh/bin/python -m pip install dist/*.whl
+      - name: the installed package imports and reports its version
+        run: /tmp/fresh/bin/python -c "import mullerbox; print(mullerbox.__version__)"
