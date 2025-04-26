@@ -25,13 +25,18 @@ def to_decimal(
     value: object,
     what: str,
     *,
+    prefixes: tuple[str, ...] = (),
     suffixes: tuple[str, ...] = (),
     strip_commas: bool = False,
 ) -> Decimal:
     """Read a Decimal off anything the shop might hand over.
 
-    ``suffixes`` are unit spellings to tolerate on a string, tried longest
-    first so that ``lbs`` is not left as a stray ``s`` after ``lb`` matched.
+    ``suffixes`` are unit spellings to tolerate at the end of a string, tried
+    longest first so that ``lbs`` is not left as a stray ``s`` after ``lb``
+    matched. ``prefixes`` does the same at the front, which is where a currency
+    symbol lives: a unit written after the number and a symbol written before it
+    are the same problem and it is worth only solving it once.
+
     Floats go through ``repr`` so a value that was typed as 12.005 quantises
     from 12.005 rather than from 12.004999999999999.
     """
@@ -45,6 +50,10 @@ def to_decimal(
         return Decimal(repr(value))
     if isinstance(value, str):
         text = value.strip().lower()
+        for prefix in sorted(prefixes, key=len, reverse=True):
+            if text.startswith(prefix):
+                text = text[len(prefix) :].strip()
+                break
         for suffix in sorted(suffixes, key=len, reverse=True):
             if text.endswith(suffix):
                 text = text[: -len(suffix)].strip()

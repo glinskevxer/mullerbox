@@ -12,6 +12,7 @@ from mullerbox.units.bulk import Pounds
 from mullerbox.units.duration import Seconds
 from mullerbox.units.mass import Grams
 from mullerbox.units.mesh import Mesh
+from mullerbox.units.money import Money, PricePerTon
 from mullerbox.units.percent import Percent, Points
 from mullerbox.units.pressure import Psi, WetTensile
 from mullerbox.units.scales import Hardness, Permeability
@@ -21,10 +22,12 @@ __all__ = [
     "Grams",
     "Hardness",
     "Mesh",
+    "Money",
     "Percent",
     "Permeability",
     "Points",
     "Pounds",
+    "PricePerTon",
     "Psi",
     "Seconds",
     "Temperature",

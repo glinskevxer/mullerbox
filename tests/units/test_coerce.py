@@ -88,3 +88,23 @@ class TestBooleansAreRefusedEverywhere:
     def test_no_quantity_accepts_a_boolean(self, scale: type) -> None:
         with pytest.raises(BadInputError, match="from a boolean"):
             scale(True)
+
+
+class TestPrefixes:
+    def test_a_currency_symbol_is_stripped_from_the_front(self) -> None:
+        assert to_decimal("$12.34", "an amount", prefixes=("$",)) == Decimal("12.34")
+
+    def test_the_longest_prefix_wins(self) -> None:
+        assert to_decimal("us$12.34", "an amount", prefixes=("$", "us$")) == Decimal("12.34")
+
+    def test_only_one_prefix_is_taken(self) -> None:
+        with pytest.raises(BadInputError, match="is not an amount"):
+            to_decimal("$$12.34", "an amount", prefixes=("$",))
+
+    def test_a_prefix_and_a_suffix_together(self) -> None:
+        assert to_decimal("$12.34 usd", "an amount", prefixes=("$",), suffixes=("usd",)) == Decimal(
+            "12.34"
+        )
+
+    def test_no_prefix_present_is_fine(self) -> None:
+        assert to_decimal("12.34", "an amount", prefixes=("$",)) == Decimal("12.34")
