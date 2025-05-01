@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
-from mullerbox.system.state import SandSystem
+from mullerbox.system.balance import Balance
+from mullerbox.system.state import MassBasis, SandSystem
 
-__all__ = ["SandSystem"]
+__all__ = ["Balance", "MassBasis", "SandSystem"]
