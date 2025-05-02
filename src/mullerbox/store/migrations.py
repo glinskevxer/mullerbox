@@ -96,6 +96,45 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=2,
+        name="samples and property results",
+        statements=(
+            """
+            CREATE TABLE sample (
+                sample_id  TEXT PRIMARY KEY,
+                taken_on   TEXT NOT NULL,
+                point      TEXT NOT NULL,
+                system_name TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE result (
+                sample_id      TEXT NOT NULL REFERENCES sample (sample_id),
+                property       TEXT NOT NULL,
+                reading        TEXT NOT NULL,
+                scale          TEXT NOT NULL,
+                instrument_tag TEXT NOT NULL REFERENCES instrument (tag),
+                tested_on      TEXT NOT NULL,
+                PRIMARY KEY (sample_id, property)
+            )
+            """,
+            """
+            CREATE INDEX result_by_property
+                ON result (property, tested_on)
+            """,
+            """
+            CREATE TABLE sieve_reading (
+                sample_id   TEXT NOT NULL REFERENCES sample (sample_id),
+                series_name TEXT NOT NULL REFERENCES screen_series (name),
+                charged_cg  INTEGER NOT NULL,
+                mesh_number INTEGER NOT NULL,
+                retained_cg INTEGER NOT NULL,
+                PRIMARY KEY (sample_id, mesh_number)
+            )
+            """,
+        ),
+    ),
 )
 
 
