@@ -135,6 +135,56 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=3,
+        name="production: heats, molds, castings and pours",
+        statements=(
+            """
+            CREATE TABLE heat (
+                heat_number TEXT PRIMARY KEY,
+                poured_on   TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE mold (
+                mold_id     TEXT PRIMARY KEY,
+                heat_number TEXT NOT NULL REFERENCES heat (heat_number),
+                pattern     TEXT NOT NULL,
+                sand_lb     TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE casting (
+                casting_id  TEXT PRIMARY KEY,
+                mold_id     TEXT NOT NULL REFERENCES mold (mold_id),
+                weight_lb   TEXT NOT NULL,
+                disposition TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX casting_by_mold ON casting (mold_id)
+            """,
+            """
+            CREATE INDEX mold_by_heat ON mold (heat_number)
+            """,
+            """
+            CREATE TABLE pour (
+                poured_on TEXT NOT NULL,
+                pattern   TEXT NOT NULL,
+                metal_lb  TEXT NOT NULL,
+                sand_lb   TEXT NOT NULL,
+                PRIMARY KEY (poured_on, pattern)
+            )
+            """,
+            """
+            CREATE TABLE casting_defect (
+                casting_id TEXT NOT NULL REFERENCES casting (casting_id),
+                defect     TEXT NOT NULL,
+                PRIMARY KEY (casting_id, defect)
+            )
+            """,
+        ),
+    ),
 )
 
 
