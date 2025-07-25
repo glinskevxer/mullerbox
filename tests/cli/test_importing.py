@@ -1,0 +1,144 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from mullerbox.cli.context import EXIT_RULE
+from tests.cli.helpers import initialised, run
+
+BENCH = (
+    "sample,property,reading,instrument,tested\n"
+    "S-100,comp,42.0,RAM-1,2025-07-28\n"
+    "S-100,perm,110,PERM-1,2025-07-28\n"
+)
+LABELS = ["6", "12", "20", "30", "40", "50", "70", "100", "140", "200", "270", "PAN"]
+MASSES = {"50": "8.00", "70": "22.00", "100": "16.00", "140": "4.00"}
+POURS = "poured,pattern,metal,sand\n2025-07-28,heavy jobbing,10000,35000\n"
+INSPECTIONS = "casting,disposition,defects\nC-1,scrapped,blow\nC-2,shipped,\n"
+
+
+def sieve_csv(sample_id: str = "S-100", charged: str = "50.00") -> str:
+    rows = "".join(
+        f"{sample_id},{label},{MASSES.get(label, '0.00')},{charged}\n" for label in LABELS
+    )
+    return "sample,screen,retained,charged\n" + rows
+
+
+@pytest.fixture
+def book(tmp_path: Path) -> Path:
+    target = initialised(tmp_path)
+    run("catalogue", "load-afs", book=target)
+    for tag, kind in (("RAM-1", "compactability"), ("PERM-1", "permeability")):
+        run("catalogue", "instrument-add", tag, kind, book=target)
+    run(
+        "lab",
+        "sample-add",
+        "S-100",
+        "--on",
+        "2025-07-28",
+        "--point",
+        "muller",
+        "--system",
+        "two",
+        book=target,
+    )
+    return target
+
+
+def write(tmp_path: Path, name: str, text: str) -> Path:
+    target = tmp_path / name
+    target.write_text(text, encoding="utf-8")
+    return target
+
+
+class TestBench:
+    def test_a_clean_file_loads(self, book: Path, tmp_path: Path) -> None:
+        path = write(tmp_path, "bench.csv", BENCH)
+        result = run("import", "bench", str(path), book=book)
+        assert result.exit_code == 0
+        assert "loaded 2 readings, 0 problems" in result.output
+
+    def test_the_readings_are_on_the_book(self, book: Path, tmp_path: Path) -> None:
+        run("import", "bench", str(write(tmp_path, "b.csv", BENCH)), book=book)
+        shown = run("lab", "sample", "S-100", book=book)
+        assert "42.00%" in shown.output
+        assert "110 AFS" in shown.output
+
+    def test_a_bad_row_is_reported_and_the_rest_load(self, book: Path, tmp_path: Path) -> None:
+        text = BENCH + "S-100,stickiness,4,RAM-1,2025-07-28\n"
+        result = run("import", "bench", str(write(tmp_path, "b.csv", text)), book=book)
+        assert result.exit_code == 0
+        assert "loaded 2 readings, 1 problems" in result.output
+        assert "not a sand property" in result.output
+
+    def test_strict_refuses_the_whole_file(self, book: Path, tmp_path: Path) -> None:
+        text = BENCH + "S-100,stickiness,4,RAM-1,2025-07-28\n"
+        result = run("import", "bench", str(write(tmp_path, "b.csv", text)), "--strict", book=book)
+        assert result.exit_code == EXIT_RULE
+        assert "--strict was given" in result.output
+
+    def test_a_reading_for_an_unknown_sample_is_skipped(self, book: Path, tmp_path: Path) -> None:
+        text = "sample,property,reading,instrument,tested\nS-999,comp,42,RAM-1,2025-07-28\n"
+        result = run("import", "bench", str(write(tmp_path, "b.csv", text)), book=book)
+        assert "is not on the book" in result.output
+        assert "loaded 0 readings" in result.output
+
+    def test_a_missing_file_is_refused_cleanly(self, book: Path, tmp_path: Path) -> None:
+        result = run("import", "bench", str(tmp_path / "nothing.csv"), book=book)
+        assert result.exit_code == EXIT_RULE
+        assert "there is no file at" in result.output
+
+
+class TestSieve:
+    def test_a_clean_file_loads(self, book: Path, tmp_path: Path) -> None:
+        path = write(tmp_path, "sieve.csv", sieve_csv())
+        result = run("import", "sieve", str(path), "--series", "AFS US 11 screen", book=book)
+        assert result.exit_code == 0
+        assert "loaded 1 analyses" in result.output
+
+    def test_the_fineness_can_then_be_read(self, book: Path, tmp_path: Path) -> None:
+        path = write(tmp_path, "sieve.csv", sieve_csv())
+        run("import", "sieve", str(path), "--series", "AFS US 11 screen", book=book)
+        result = run("lab", "fineness", "S-100", book=book)
+        assert result.exit_code == 0
+        assert "GFN" in result.output
+        assert "three screen" in result.output or "four screen" in result.output
+
+    def test_a_stack_that_will_not_close_is_one_problem(self, book: Path, tmp_path: Path) -> None:
+        path = write(tmp_path, "sieve.csv", sieve_csv(charged="60.00"))
+        result = run("import", "sieve", str(path), "--series", "AFS US 11 screen", book=book)
+        assert "closure tolerance" in result.output
+        assert "loaded 0 analyses" in result.output
+
+    def test_an_unknown_series_is_refused(self, book: Path, tmp_path: Path) -> None:
+        path = write(tmp_path, "sieve.csv", sieve_csv())
+        result = run("import", "sieve", str(path), "--series", "nothing", book=book)
+        assert result.exit_code == EXIT_RULE
+
+
+class TestPours:
+    def test_a_clean_file_loads(self, book: Path, tmp_path: Path) -> None:
+        path = write(tmp_path, "pours.csv", POURS)
+        result = run("import", "pours", str(path), book=book)
+        assert result.exit_code == 0
+        assert "loaded 1 pours" in result.output
+
+    def test_a_bad_class_is_reported(self, book: Path, tmp_path: Path) -> None:
+        text = POURS + "2025-07-28,prototype,1000,3000\n"
+        result = run("import", "pours", str(write(tmp_path, "p.csv", text)), book=book)
+        assert "not a pattern class" in result.output
+
+
+class TestInspections:
+    def test_it_reads_and_reports_without_writing(self, book: Path, tmp_path: Path) -> None:
+        path = write(tmp_path, "insp.csv", INSPECTIONS)
+        result = run("import", "inspections", str(path), book=book)
+        assert result.exit_code == 0
+        assert "2 inspections, 1 scrapped" in result.output
+        assert "1 carrying defects" in result.output
+
+    def test_a_shipped_casting_with_defects_is_a_problem(self, book: Path, tmp_path: Path) -> None:
+        text = INSPECTIONS + "C-3,shipped,blow\n"
+        result = run("import", "inspections", str(write(tmp_path, "i.csv", text)), book=book)
+        assert "shipped with 1 defects" in result.output
