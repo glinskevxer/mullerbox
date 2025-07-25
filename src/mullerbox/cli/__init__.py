@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from mullerbox.cli import catalogue as _catalogue
+from mullerbox.cli import lab as _lab
 from mullerbox.cli.main import main
 
 # Importing the group modules is what registers their commands on the root.
-_REGISTERED = (_catalogue,)
+_REGISTERED = (_catalogue, _lab)
 
 __all__ = ["main"]
