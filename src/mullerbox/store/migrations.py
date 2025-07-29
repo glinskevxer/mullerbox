@@ -185,6 +185,31 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=4,
+        name="published spec sheets",
+        statements=(
+            """
+            CREATE TABLE spec_sheet (
+                name       TEXT PRIMARY KEY,
+                published_on TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE spec_band (
+                sheet_name TEXT NOT NULL REFERENCES spec_sheet (name),
+                property   TEXT NOT NULL,
+                low        TEXT,
+                high       TEXT,
+                scale      TEXT NOT NULL,
+                PRIMARY KEY (sheet_name, property)
+            )
+            """,
+            """
+            CREATE INDEX spec_band_by_sheet ON spec_band (sheet_name)
+            """,
+        ),
+    ),
 )
 
 
