@@ -210,6 +210,35 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=5,
+        name="incoming material lots",
+        statements=(
+            """
+            CREATE TABLE material_lot (
+                lot_id       TEXT PRIMARY KEY,
+                material     TEXT NOT NULL,
+                mass_lb      TEXT NOT NULL,
+                delivered_on TEXT NOT NULL,
+                certificate  TEXT NOT NULL,
+                state        TEXT NOT NULL,
+                released_by  TEXT NOT NULL DEFAULT '',
+                note         TEXT NOT NULL DEFAULT ''
+            )
+            """,
+            """
+            CREATE TABLE lot_claim (
+                lot_id TEXT NOT NULL REFERENCES material_lot (lot_id),
+                field  TEXT NOT NULL,
+                value  TEXT NOT NULL,
+                PRIMARY KEY (lot_id, field)
+            )
+            """,
+            """
+            CREATE INDEX lot_by_material ON material_lot (material, delivered_on)
+            """,
+        ),
+    ),
 )
 
 
