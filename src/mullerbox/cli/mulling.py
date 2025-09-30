@@ -13,15 +13,14 @@ and a default here would make that invisible.
 
 from __future__ import annotations
 
-from datetime import date
-
 import click
 
 from mullerbox.burnout.loss import burnout_of
 from mullerbox.burnout.pour import Pour
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
-from mullerbox.errors import BadInputError, NotFoundError
+from mullerbox.cli.parsing import read_date
+from mullerbox.errors import NotFoundError
 from mullerbox.muller.cycle import Cycle
 from mullerbox.muller.plan import plan_batch
 from mullerbox.spec.pattern import parse_pattern_class
@@ -72,7 +71,7 @@ def plan(
     return_f: str,
 ) -> None:
     """Work out the four additions for the next batch."""
-    when = _date_from(as_of)
+    when = read_date(as_of)
     cls = parse_pattern_class(pattern)
     with context.book() as book:
         pours = [p for p in heat_repo.load_pours(book, when) if p.pattern is cls]
@@ -158,13 +157,6 @@ def _combined(pours: list[Pour]) -> Pour:
         metal=metal,
         sand=sand,
     )
-
-
-def _date_from(text: str) -> date:
-    try:
-        return date.fromisoformat(text.strip())
-    except ValueError:
-        raise BadInputError(f"{text!r} is not a date in yyyy-mm-dd form") from None
 
 
 __all__ = ["check_cycle", "mulling", "plan"]

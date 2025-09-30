@@ -15,7 +15,6 @@ answer.
 
 from __future__ import annotations
 
-from datetime import date
 from decimal import Decimal
 
 import click
@@ -23,6 +22,7 @@ import click
 from mullerbox.analysis.control import MIN_POINTS, chart_of
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
+from mullerbox.cli.parsing import read_date
 from mullerbox.errors import BadInputError
 from mullerbox.props.kind import parse_property
 from mullerbox.report.layout import Column, Table
@@ -46,7 +46,7 @@ def reports() -> None:
 def shift(context: Context, pattern: str, as_of: str, system_name: str) -> None:
     """Print the shift report for a date, judged as a pattern class."""
     cls = parse_pattern_class(pattern)
-    when = _date_from(as_of)
+    when = read_date(as_of)
     with context.book() as book:
         sheet = spec_repo.current_sheet(book, when)
         gathered = reading_repo.gather(book, when)
@@ -65,7 +65,7 @@ def shift(context: Context, pattern: str, as_of: str, system_name: str) -> None:
 @handle
 def exceptions(context: Context, as_of: str) -> None:
     """List the readings that do not count, and why."""
-    when = _date_from(as_of)
+    when = read_date(as_of)
     with context.book() as book:
         found = reading_repo.uncounted(book, when)
         instruments = instrument_repo.load_all(book)
@@ -143,13 +143,6 @@ def _scalar(reading: object) -> Decimal:
     if isinstance(value, int):
         return Decimal(value)
     raise BadInputError(f"a {type(reading).__name__} does not chart")
-
-
-def _date_from(text: str) -> date:
-    try:
-        return date.fromisoformat(text.strip())
-    except ValueError:
-        raise BadInputError(f"{text!r} is not a date in yyyy-mm-dd form") from None
 
 
 __all__ = ["chart", "exceptions", "reports", "shift"]

@@ -19,7 +19,7 @@ import click
 
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
-from mullerbox.errors import BadInputError
+from mullerbox.cli.parsing import read_date
 from mullerbox.props.kind import PropertyKind
 from mullerbox.report.layout import Column, Table
 from mullerbox.spec.band import Band
@@ -66,7 +66,7 @@ def load_default(context: Context, published: str, name: str) -> None:
     """Put a working spec sheet on the book as a starting point."""
     built = SpecSheet(name=name, bands=dict(DEFAULT_BANDS))
     with context.book() as book:
-        spec_repo.save_sheet(book, built, _date_from(published))
+        spec_repo.save_sheet(book, built, read_date(published))
     context.say(f"published {name} with {len(built.covers)} bands")
 
 
@@ -96,7 +96,7 @@ def list_sheets(context: Context) -> None:
 def show(context: Context, pattern: str, as_of: str | None) -> None:
     """Show the bands in force for a pattern class."""
     cls = parse_pattern_class(pattern)
-    when = _date_from(as_of) if as_of else date.today()
+    when = read_date(as_of) if as_of else date.today()
     with context.book() as book:
         sheet = spec_repo.current_sheet(book, when)
     resolved = resolve(sheet, cls)
@@ -155,13 +155,6 @@ def classes(context: Context) -> None:
         )
     for line in table.render():
         context.say(line)
-
-
-def _date_from(text: str) -> date:
-    try:
-        return date.fromisoformat(text.strip())
-    except ValueError:
-        raise BadInputError(f"{text!r} is not a date in yyyy-mm-dd form") from None
 
 
 __all__ = [

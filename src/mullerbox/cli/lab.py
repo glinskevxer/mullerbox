@@ -15,13 +15,11 @@ late, which happens most months.
 
 from __future__ import annotations
 
-from datetime import date
-
 import click
 
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
-from mullerbox.errors import BadInputError
+from mullerbox.cli.parsing import read_date
 from mullerbox.gfn.distribution import grade
 from mullerbox.gfn.fineness import fineness_of
 from mullerbox.props.kind import parse_property
@@ -51,7 +49,7 @@ def add_sample(
             book,
             result_repo.Sample(
                 sample_id=sample_id,
-                taken_on=_date_from(taken_on),
+                taken_on=read_date(taken_on),
                 point=point,
                 system_name=system_name,
             ),
@@ -81,7 +79,7 @@ def add_result(
         kind=kind,
         reading=kind.reading_type(reading),
         instrument_tag=instrument,
-        tested_on=_date_from(tested_on),
+        tested_on=read_date(tested_on),
         sample_id=sample_id,
     )
     with context.book() as book:
@@ -171,13 +169,6 @@ def series_check(context: Context, name: str) -> None:
         table.add(step.label, str(step.mesh.micrometres), str(step.multiplier))
     for line in table.render():
         context.say(line)
-
-
-def _date_from(text: str) -> date:
-    try:
-        return date.fromisoformat(text.strip())
-    except ValueError:
-        raise BadInputError(f"{text!r} is not a date in yyyy-mm-dd form") from None
 
 
 __all__ = [

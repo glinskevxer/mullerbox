@@ -13,15 +13,12 @@ command and not a query.
 
 from __future__ import annotations
 
-from datetime import date
-from decimal import Decimal, InvalidOperation
-
 import click
 
 from mullerbox.addition.material import Material
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
-from mullerbox.errors import BadInputError
+from mullerbox.cli.parsing import read_date, read_decimal, read_member
 from mullerbox.report.layout import Column, Table
 from mullerbox.store import lot_repo
 from mullerbox.supplier.incoming import verify
@@ -62,15 +59,15 @@ def book_in(
     """Book a delivered lot onto the book with what its certificate claims."""
     claims: dict[str, object] = {}
     if gfn is not None:
-        claims["grain_fineness"] = _decimal_from(gfn, "grain fineness")
+        claims["grain_fineness"] = read_decimal(gfn, "grain fineness")
     for name, value in (("clay", clay), ("moisture", moisture), ("loss_on_ignition", loi)):
         if value is not None:
             claims[name] = Percent(value)
     built = Lot(
         lot_id=lot_id,
-        material=_material_from(material_name),
+        material=read_member(material_name, Material, "a material"),
         mass=Pounds(mass),
-        delivered_on=_date_from(delivered),
+        delivered_on=read_date(delivered),
         certificate=Certificate(number=certificate, **claims),  # type: ignore[arg-type]
     )
     with context.book() as book:
@@ -98,7 +95,7 @@ def verify_lot(
     """Compare the lab's own readings against the certificate. Changes nothing."""
     measured: dict[str, object] = {}
     if gfn is not None:
-        measured["grain_fineness"] = _decimal_from(gfn, "grain fineness")
+        measured["grain_fineness"] = read_decimal(gfn, "grain fineness")
     for name, value in (("clay", clay), ("moisture", moisture), ("loss_on_ignition", loi)):
         if value is not None:
             measured[name] = Percent(value)
@@ -180,29 +177,6 @@ def list_held(context: Context) -> None:
         )
     for line in table.render():
         context.say(line)
-
-
-def _material_from(text: str) -> Material:
-    key = text.strip().upper().replace("-", "_").replace(" ", "_")
-    try:
-        return Material[key]
-    except KeyError:
-        known = ", ".join(m.name.lower() for m in Material)
-        raise BadInputError(f"{text!r} is not a material; try {known}") from None
-
-
-def _decimal_from(text: str, what: str) -> Decimal:
-    try:
-        return Decimal(text.strip())
-    except InvalidOperation:
-        raise BadInputError(f"{text!r} is not a {what}") from None
-
-
-def _date_from(text: str) -> date:
-    try:
-        return date.fromisoformat(text.strip())
-    except ValueError:
-        raise BadInputError(f"{text!r} is not a date in yyyy-mm-dd form") from None
 
 
 __all__ = [

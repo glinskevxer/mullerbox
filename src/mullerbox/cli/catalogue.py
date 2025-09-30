@@ -10,15 +10,13 @@ fineness number ever computed against it and nothing downstream could tell.
 
 from __future__ import annotations
 
-from datetime import date
-
 import click
 
 from mullerbox.cal.instrument import Instrument, InstrumentKind
 from mullerbox.cal.window import CalibrationWindow
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
-from mullerbox.errors import BadInputError
+from mullerbox.cli.parsing import read_date, read_member
 from mullerbox.report.layout import Column, Table
 from mullerbox.screens.series import AFS_US_SERIES
 from mullerbox.store import instrument_repo, series_repo
@@ -64,7 +62,9 @@ def list_series(context: Context) -> None:
 def add_instrument(context: Context, tag: str, kind: str) -> None:
     """Put a lab instrument on the book. KIND is one of the instrument kinds."""
     with context.book() as book:
-        instrument_repo.save_instrument(book, Instrument(tag=tag, kind=_kind_from(kind)))
+        instrument_repo.save_instrument(
+            book, Instrument(tag=tag, kind=read_member(kind, InstrumentKind, "an instrument kind"))
+        )
     context.say(f"added instrument {tag}")
 
 
@@ -77,7 +77,7 @@ def add_instrument(context: Context, tag: str, kind: str) -> None:
 @handle
 def calibrate(context: Context, tag: str, certificate: str, calibrated_on: str, days: int) -> None:
     """Record a calibration certificate against an instrument."""
-    window = CalibrationWindow.opened(_date_from(calibrated_on), days, certificate)
+    window = CalibrationWindow.opened(read_date(calibrated_on), days, certificate)
     with context.book() as book:
         instrument_repo.add_calibration(book, tag, window)
     context.say(f"{tag} is good to {window.last_good_day} on {certificate}")
@@ -89,7 +89,7 @@ def calibrate(context: Context, tag: str, certificate: str, calibrated_on: str, 
 @handle
 def list_instruments(context: Context, as_of: str | None) -> None:
     """List the instruments and, optionally, whether they were in calibration."""
-    when = _date_from(as_of) if as_of else None
+    when = read_date(as_of) if as_of else None
     with context.book() as book:
         everything = instrument_repo.load_all(book)
     if not everything:
@@ -109,22 +109,6 @@ def list_instruments(context: Context, as_of: str | None) -> None:
         table.add(*row)
     for line in table.render():
         context.say(line)
-
-
-def _kind_from(text: str) -> InstrumentKind:
-    key = text.strip().upper().replace("-", "_").replace(" ", "_")
-    try:
-        return InstrumentKind[key]
-    except KeyError:
-        known = ", ".join(k.name.lower() for k in InstrumentKind)
-        raise BadInputError(f"{text!r} is not an instrument kind; try {known}") from None
-
-
-def _date_from(text: str) -> date:
-    try:
-        return date.fromisoformat(text.strip())
-    except ValueError:
-        raise BadInputError(f"{text!r} is not a date in yyyy-mm-dd form") from None
 
 
 __all__ = [
