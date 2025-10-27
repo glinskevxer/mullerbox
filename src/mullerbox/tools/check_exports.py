@@ -112,6 +112,7 @@ def _is_imported(tree: ast.Module, name: str) -> bool:
 
 
 def main() -> int:
+    """Print every export problem and exit non-zero if there are any."""
     found = problems()
     for line in found:
         print(line)

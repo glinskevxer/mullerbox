@@ -131,6 +131,7 @@ class Schedule:
         return frozenset(self.intervals)
 
     def frequency_of(self, kind: PropertyKind) -> Frequency:
+        """How often one property is tested, refusing one not on the programme."""
         if not isinstance(kind, PropertyKind):
             raise BadInputError("a property kind is expected")
         if kind not in self.intervals:
@@ -173,6 +174,7 @@ class Schedule:
         return last_tested + timedelta(days=self.frequency_of(kind).days)
 
     def with_frequency(self, kind: PropertyKind, frequency: Frequency) -> Schedule:
+        """A copy of the schedule with one property's interval changed."""
         if not isinstance(frequency, Frequency):
             raise BadInputError("a frequency is expected")
         if not isinstance(kind, PropertyKind):

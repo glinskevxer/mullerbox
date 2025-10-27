@@ -54,6 +54,7 @@ class SpecSheet:
         return frozenset(self.bands)
 
     def band_for(self, kind: PropertyKind) -> Band:
+        """The band for one property, refusing one this sheet does not carry."""
         if not isinstance(kind, PropertyKind):
             raise BadInputError("a property kind is expected")
         if kind not in self.bands:
@@ -80,6 +81,7 @@ class ResolvedSpec:
         return frozenset(self.bands)
 
     def band_for(self, kind: PropertyKind) -> Band:
+        """The band in force for one property, refusing one this class does not hold."""
         if not isinstance(kind, PropertyKind):
             raise BadInputError("a property kind is expected")
         if kind not in self.bands:

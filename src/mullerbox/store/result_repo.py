@@ -92,6 +92,7 @@ def sample_exists(book: Book, sample_id: str) -> bool:
 
 
 def load_sample(book: Book, sample_id: str) -> Sample:
+    """Rebuild a sample from the book."""
     row = book.one(
         "SELECT sample_id, taken_on, point, system_name FROM sample WHERE sample_id = ?",
         (sample_id,),

@@ -146,6 +146,7 @@ class InspectionLoad:
 
 
 def load_pours(sheet: Sheet) -> PourLoad:
+    """Read a pour log, keeping the rows that would not parse."""
     if not isinstance(sheet, Sheet):
         raise BadInputError("a parsed sheet is expected")
     sheet.require_columns(*POUR_COLUMNS)
@@ -157,6 +158,7 @@ def load_pours(sheet: Sheet) -> PourLoad:
 
 
 def load_inspections(sheet: Sheet) -> InspectionLoad:
+    """Read an inspection sheet, keeping the rows that would not parse."""
     if not isinstance(sheet, Sheet):
         raise BadInputError("a parsed sheet is expected")
     sheet.require_columns(*INSPECTION_COLUMNS)

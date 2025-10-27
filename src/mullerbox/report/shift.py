@@ -80,6 +80,7 @@ class ShiftReport:
         return not self.out_of_band
 
     def table(self) -> Table:
+        """One row per reading, with the band in force and a verdict mark."""
         built = Table(
             columns=(
                 Column("property"),
@@ -98,6 +99,7 @@ class ShiftReport:
         return built
 
     def render(self) -> list[str]:
+        """The report as lines, with the excursions named under the table."""
         title = f"{self.system_name} on {self.shift_on}, judged as {self.resolved.pattern.label}"
         lines = heading(title)
         lines.extend(self.table().render())

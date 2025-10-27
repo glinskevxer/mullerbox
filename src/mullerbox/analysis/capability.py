@@ -73,6 +73,7 @@ class Capability:
         return self.cp is not None and self.cp - self.cpk >= Decimal("0.2")
 
     def verdict(self) -> str:
+        """One line saying what the Cpk means, and whether centring would fix it."""
         if self.is_capable:
             centred = "" if not self.is_off_centre else ", though it sits off centre"
             return f"capable at Cpk {self.cpk}{centred}"

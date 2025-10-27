@@ -124,6 +124,7 @@ def list_heats(book: Book, on: date | None = None) -> list[str]:
 
 
 def save_pour(book: Book, pour: Pour) -> None:
+    """Write a pour record, refusing a second one for the same day and class."""
     if not isinstance(pour, Pour):
         raise BadInputError("a pour is expected")
     existing = book.one(

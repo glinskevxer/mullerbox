@@ -42,6 +42,7 @@ class ScrapSheet:
         return self.report.share_charged_to(culprit)
 
     def culprit_table(self) -> Table:
+        """One row per culprit, with its weight and its share of the pour."""
         built = Table(
             columns=(
                 Column("charged to"),
@@ -55,6 +56,7 @@ class ScrapSheet:
         return built
 
     def casting_table(self) -> Table:
+        """One row per scrapped casting, in casting number order."""
         built = Table(
             columns=(
                 Column("casting"),
@@ -77,6 +79,7 @@ class ScrapSheet:
         return built
 
     def render(self) -> list[str]:
+        """The sheet as lines, with the unjudged weight above the totals."""
         lines = heading(f"scrap on heat {self.report.heat_number}")
         lines.append(f"poured {self.report.poured}")
         if self.has_pending:

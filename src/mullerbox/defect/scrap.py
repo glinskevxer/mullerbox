@@ -52,6 +52,7 @@ class Charge:
 
     @property
     def sand_properties(self) -> tuple[PropertyKind, ...]:
+        """Every sand property named across this casting's defects, first mention first."""
         found: list[PropertyKind] = []
         for attribution in self.attributions:
             if attribution.is_sand:
@@ -71,6 +72,7 @@ class ScrapReport:
     pending: Pounds
 
     def weight_charged_to(self, culprit: Culprit) -> Pounds:
+        """The scrapped weight landing on one culprit."""
         if not isinstance(culprit, Culprit):
             raise BadInputError("a culprit is expected")
         running = Pounds.zero()
@@ -81,6 +83,7 @@ class ScrapReport:
 
     @property
     def scrapped(self) -> Pounds:
+        """Every scrapped casting's weight, whoever it was charged to."""
         running = Pounds.zero()
         for charge in self.charges:
             running = running + charge.weight

@@ -62,6 +62,7 @@ class Grams:
 
     @classmethod
     def from_centigrams(cls, centigrams: int) -> Grams:
+        """Build from a raw centigram count, skipping the coercion."""
         if not isinstance(centigrams, int):
             raise BadInputError("centigrams have to be a whole number")
         if centigrams < 0:

@@ -114,6 +114,7 @@ def load_sheet(book: Book, name: str) -> SpecSheet:
 
 
 def published_on(book: Book, name: str) -> date:
+    """When a sheet was published, which decides which shifts it governs."""
     row = book.one("SELECT published_on FROM spec_sheet WHERE name = ?", (name,))
     if row is None:
         raise NotFoundError("spec sheet", name)

@@ -74,6 +74,7 @@ class CalibrationReport:
         return sum(lapse.count for lapse in self.lapsed)
 
     def render(self) -> list[str]:
+        """The report as lines, lapses first because they are already costing readings."""
         lines = heading(f"calibration as at {self.as_of}")
         if self.lapsed:
             lines.append("LAPSED - readings taken on these do not count")

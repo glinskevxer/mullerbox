@@ -76,6 +76,7 @@ class Points:
         return Points(self.value - other.value)
 
     def scaled(self, factor: object) -> Points:
+        """Multiply a number of points by a ratio, keeping the sign."""
         if isinstance(factor, Points):
             raise BadInputError("points times points is not points")
         if not isinstance(factor, str | int | Decimal | float):

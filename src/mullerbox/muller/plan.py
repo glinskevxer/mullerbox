@@ -83,6 +83,7 @@ class BatchPlan:
         raise BadInputError(f"no {material.label} on this plan")
 
     def render(self) -> list[str]:
+        """The plan as lines, with a star against every addition that is not zero."""
         lines = [f"batch of {self.batch_size}"]
         for addition in self.additions:
             mark = "  " if addition.is_nothing else "* "

@@ -268,6 +268,7 @@ def applied(book: Book) -> list[tuple[int, str]]:
 
 
 def pending(book: Book, migrations: tuple[Migration, ...] = MIGRATIONS) -> list[Migration]:
+    """The migrations this book has not had yet, in order."""
     _check_the_list(migrations)
     at = current_version(book)
     return [m for m in migrations if m.version > at]

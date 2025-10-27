@@ -128,6 +128,7 @@ class Heat:
 
     @property
     def metal(self) -> Pounds:
+        """What the heat poured, summed from what came out of its molds."""
         running = Pounds.zero()
         for mold in self.molds:
             running = running + mold.metal
@@ -135,6 +136,7 @@ class Heat:
 
     @property
     def sand(self) -> Pounds:
+        """The sand in this heat's molds, which the pour ratio is taken against."""
         running = Pounds.zero()
         for mold in self.molds:
             running = running + mold.sand

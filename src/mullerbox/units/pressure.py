@@ -66,6 +66,7 @@ class Psi:
         return Psi(gap if gap > 0 else Decimal(0))
 
     def scaled(self, factor: object) -> Psi:
+        """Multiply by a ratio, rounding half up at the tenth of a psi."""
         if isinstance(factor, Psi):
             raise BadInputError("a pressure times a pressure is not a pressure")
         if not isinstance(factor, str | int | Decimal | float):

@@ -60,6 +60,7 @@ class Row:
         return value
 
     def optional(self, column: str, fallback: str = "") -> str:
+        """A column that may be absent or blank, with a fallback for either."""
         key = column.strip().lower()
         value = self.fields.get(key, "").strip()
         return value or fallback

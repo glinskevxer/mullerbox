@@ -27,6 +27,8 @@ RULE_CHARACTER = "-"
 
 
 class Align(Enum):
+    """Which way a column's cells sit against its width."""
+
     LEFT = "left"
     RIGHT = "right"
 
@@ -117,6 +119,7 @@ class Table:
 
 
 def rule(width: int, character: str = RULE_CHARACTER) -> str:
+    """A horizontal rule of one repeated character."""
     if width < 0:
         raise BadInputError("a rule cannot be shorter than nothing")
     if len(character) != 1:

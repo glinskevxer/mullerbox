@@ -113,6 +113,7 @@ def applies_cleanly() -> list[str]:
 
 
 def main() -> int:
+    """Print every migration problem and exit non-zero if there are any."""
     found = problems() + applies_cleanly()
     for line in found:
         print(line)

@@ -52,6 +52,7 @@ class Money:
 
     @classmethod
     def from_cents(cls, cents: int) -> Money:
+        """Build from a raw cent count, skipping the coercion."""
         if isinstance(cents, bool) or not isinstance(cents, int):
             raise BadInputError("cents are a whole number")
         if cents < 0:
@@ -135,6 +136,7 @@ class PricePerTon:
 
 
 def total_money(amounts: list[Money]) -> Money:
+    """Add a list of amounts exactly. Empty comes back as zero, not as an error."""
     running = 0
     for amount in amounts:
         if not isinstance(amount, Money):

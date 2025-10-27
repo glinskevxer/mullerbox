@@ -87,6 +87,7 @@ class Pounds:
         return Pounds(self.value - other.value)
 
     def scaled(self, factor: object) -> Pounds:
+        """Multiply by a ratio, rounding half up at the hundredth of a pound."""
         if isinstance(factor, Pounds):
             raise BadInputError("a mass times a mass is not a mass")
         if not isinstance(factor, str | int | Decimal | float) or isinstance(factor, bool):
