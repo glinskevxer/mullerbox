@@ -239,6 +239,23 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=6,
+        name="material prices",
+        statements=(
+            """
+            CREATE TABLE material_price (
+                material  TEXT NOT NULL,
+                effective TEXT NOT NULL,
+                per_ton   TEXT NOT NULL,
+                PRIMARY KEY (material, effective)
+            )
+            """,
+            """
+            CREATE INDEX price_by_date ON material_price (effective)
+            """,
+        ),
+    ),
 )
 
 
