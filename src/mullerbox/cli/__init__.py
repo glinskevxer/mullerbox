@@ -11,6 +11,7 @@ from mullerbox.cli import mulling as _mulling
 from mullerbox.cli import production as _production
 from mullerbox.cli import reports as _reports
 from mullerbox.cli import specs as _specs
+from mullerbox.cli import systems as _systems
 from mullerbox.cli.main import main
 
 # Importing the group modules is what registers their commands on the root.
@@ -24,6 +25,7 @@ _REGISTERED = (
     _production,
     _reports,
     _specs,
+    _systems,
 )
 
 __all__ = ["main"]
