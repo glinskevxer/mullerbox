@@ -256,6 +256,30 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=7,
+        name="the testing programme",
+        statements=(
+            """
+            CREATE TABLE test_interval (
+                property  TEXT PRIMARY KEY,
+                frequency TEXT NOT NULL,
+                set_on    TEXT NOT NULL,
+                because   TEXT NOT NULL DEFAULT ''
+            )
+            """,
+            """
+            CREATE TABLE interval_change (
+                property  TEXT NOT NULL,
+                changed_on TEXT NOT NULL,
+                was       TEXT NOT NULL,
+                became    TEXT NOT NULL,
+                because   TEXT NOT NULL,
+                PRIMARY KEY (property, changed_on)
+            )
+            """,
+        ),
+    ),
 )
 
 
