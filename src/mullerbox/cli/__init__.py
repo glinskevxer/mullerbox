@@ -9,6 +9,7 @@ from mullerbox.cli import lab as _lab
 from mullerbox.cli import materials as _materials
 from mullerbox.cli import mulling as _mulling
 from mullerbox.cli import production as _production
+from mullerbox.cli import programme_cmd as _programme
 from mullerbox.cli import reports as _reports
 from mullerbox.cli import specs as _specs
 from mullerbox.cli import systems as _systems
@@ -23,6 +24,7 @@ _REGISTERED = (
     _materials,
     _mulling,
     _production,
+    _programme,
     _reports,
     _specs,
     _systems,
