@@ -280,6 +280,44 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=8,
+        name="core sand",
+        statements=(
+            """
+            CREATE TABLE binder_system (
+                name          TEXT PRIMARY KEY,
+                binder        TEXT NOT NULL,
+                resin_pct     TEXT NOT NULL,
+                catalyst_pct  TEXT NOT NULL,
+                bench_life_s  INTEGER NOT NULL,
+                strip_time_s  INTEGER NOT NULL,
+                full_cure_s   INTEGER NOT NULL,
+                tensile_floor TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE core_batch (
+                batch_id   TEXT PRIMARY KEY,
+                system_name TEXT NOT NULL REFERENCES binder_system (name),
+                mixed_at   TEXT NOT NULL,
+                charged_lb TEXT NOT NULL,
+                blown_lb   TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE core_tensile (
+                specimen_id TEXT PRIMARY KEY,
+                batch_id    TEXT NOT NULL REFERENCES core_batch (batch_id),
+                broken_at   TEXT NOT NULL,
+                tensile_psi TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX tensile_by_batch ON core_tensile (batch_id)
+            """,
+        ),
+    ),
 )
 
 
