@@ -5,6 +5,7 @@ from __future__ import annotations
 from mullerbox.cli import catalogue as _catalogue
 from mullerbox.cli import cores as _cores
 from mullerbox.cli import costing as _costing
+from mullerbox.cli import exporting as _exporting
 from mullerbox.cli import importing as _importing
 from mullerbox.cli import lab as _lab
 from mullerbox.cli import materials as _materials
@@ -21,6 +22,7 @@ _REGISTERED = (
     _catalogue,
     _cores,
     _costing,
+    _exporting,
     _importing,
     _lab,
     _materials,
