@@ -74,6 +74,8 @@ jobs:
         run: python -m mullerbox.tools.check_docstrings
       - name: CI runs every gate
         run: python -m mullerbox.tools.check_workflow
+      - name: the release surface holds
+        run: python -m mullerbox.tools.check_release
 
   build:
     runs-on: ubuntu-latest
