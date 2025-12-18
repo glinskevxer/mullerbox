@@ -28,8 +28,9 @@ from decimal import Decimal
 
 from mullerbox.errors import BadInputError
 from mullerbox.props.kind import PropertyKind
-from mullerbox.spec.band import Band, _scalar
+from mullerbox.spec.band import Band
 from mullerbox.spec.sheet import SpecSheet
+from mullerbox.units.reading import scalar_of
 
 
 @dataclass(frozen=True)
@@ -55,7 +56,7 @@ class Change:
             return None
         if not (self.was.is_two_ended and self.now.is_two_ended):
             return None
-        return _scalar(self.now.midpoint) - _scalar(self.was.midpoint)
+        return scalar_of(self.now.midpoint) - scalar_of(self.was.midpoint)
 
     @property
     def width_changed(self) -> Decimal | None:

@@ -15,21 +15,19 @@ answer.
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 import click
 
 from mullerbox.analysis.control import MIN_POINTS, chart_of
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
 from mullerbox.cli.parsing import read_date
-from mullerbox.errors import BadInputError
 from mullerbox.props.kind import parse_property
 from mullerbox.report.layout import Column, Table
 from mullerbox.report.shift import shift_report
 from mullerbox.spec.pattern import parse_pattern_class
 from mullerbox.spec.sheet import resolve
 from mullerbox.store import instrument_repo, reading_repo, result_repo, spec_repo
+from mullerbox.units.reading import scalar_of
 
 
 @main.group("report")
@@ -113,7 +111,7 @@ def chart(context: Context, property_name: str) -> None:
     kind = parse_property(property_name)
     with context.book() as book:
         results = result_repo.results_of(book, kind)
-    values = [_scalar(r.reading) for r in results]
+    values = [scalar_of(r.reading) for r in results]
     if len(values) < MIN_POINTS:
         context.say(
             f"{len(values)} {kind.label} readings on the book, "
@@ -131,18 +129,6 @@ def chart(context: Context, property_name: str) -> None:
     for flag in built.flags:
         sample = results[flag.index].sample_id
         context.say(f"{sample}: {flag}")
-
-
-def _scalar(reading: object) -> Decimal:
-    """The bare number behind any reading, for the chart to work on."""
-    value = getattr(reading, "value", None)
-    if value is None:
-        raise BadInputError("that reading has no number behind it")
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, int):
-        return Decimal(value)
-    raise BadInputError(f"a {type(reading).__name__} does not chart")
 
 
 __all__ = ["chart", "exceptions", "reports", "shift"]

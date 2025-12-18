@@ -37,6 +37,7 @@ from mullerbox.analysis.control import MIN_POINTS
 from mullerbox.errors import BadInputError, RuleError
 from mullerbox.props.kind import PropertyKind
 from mullerbox.spec.band import Band
+from mullerbox.units.reading import scalar_of
 
 # The bias correction that turns an average moving range of two into a sigma.
 D2 = Decimal("1.128")
@@ -128,10 +129,8 @@ def capability_of(kind: PropertyKind, band: Band, readings: list[Decimal]) -> Ca
     mean = (sum(readings, Decimal(0)) / len(readings)).quantize(
         Decimal("0.0001"), rounding=ROUND_HALF_UP
     )
-    from mullerbox.spec.band import _scalar
-
-    low = None if band.low is None else _scalar(band.low)
-    high = None if band.high is None else _scalar(band.high)
+    low = None if band.low is None else scalar_of(band.low)
+    high = None if band.high is None else scalar_of(band.high)
     cp = None
     if low is not None and high is not None:
         cp = ((high - low) / (6 * sigma)).quantize(PLACES, rounding=ROUND_HALF_UP)

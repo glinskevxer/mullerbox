@@ -15,6 +15,7 @@ from mullerbox.units.mesh import Mesh
 from mullerbox.units.money import Money, PricePerTon
 from mullerbox.units.percent import Percent, Points
 from mullerbox.units.pressure import Psi, WetTensile
+from mullerbox.units.reading import scalar_of
 from mullerbox.units.scales import Hardness, Permeability
 from mullerbox.units.thermal import Temperature
 
@@ -32,4 +33,5 @@ __all__ = [
     "Seconds",
     "Temperature",
     "WetTensile",
+    "scalar_of",
 ]

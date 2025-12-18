@@ -21,11 +21,11 @@ from mullerbox.analysis.control import MIN_POINTS, chart_of
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
 from mullerbox.cli.parsing import read_date, read_member
-from mullerbox.errors import BadInputError
 from mullerbox.programme.schedule import PINNED, Frequency, adjusted
 from mullerbox.props.kind import PropertyKind, parse_property
 from mullerbox.report.layout import Column, Table
 from mullerbox.store import programme_repo, result_repo
+from mullerbox.units.reading import scalar_of
 
 
 @main.group("programme")
@@ -93,7 +93,7 @@ def review(context: Context) -> None:
         schedule = programme_repo.load_schedule(book)
         histories: dict[PropertyKind, list[Decimal]] = {}
         for kind in sorted(schedule.covers, key=lambda k: k.name):
-            histories[kind] = [_scalar(r.reading) for r in result_repo.results_of(book, kind)]
+            histories[kind] = [scalar_of(r.reading) for r in result_repo.results_of(book, kind)]
     table = Table(
         columns=(
             Column("property"),
@@ -143,16 +143,6 @@ def history(context: Context, property_name: str) -> None:
         table.add(str(when), was.lower(), became.lower(), because)
     for line in table.render():
         context.say(line)
-
-
-def _scalar(reading: object) -> Decimal:
-    """The bare number behind a reading, for the chart to work on."""
-    value = getattr(reading, "value", None)
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, int):
-        return Decimal(value)
-    raise BadInputError("that reading has no number behind it")
 
 
 __all__ = ["due", "history", "programme", "review", "set_interval"]

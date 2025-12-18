@@ -28,6 +28,7 @@ from enum import Enum
 
 from mullerbox.errors import BadInputError
 from mullerbox.props.kind import PropertyKind, Reading
+from mullerbox.units.reading import scalar_of
 from mullerbox.units.scales import Permeability
 
 # The scales that only take whole numbers, and therefore have to be rounded
@@ -45,13 +46,6 @@ class Verdict(Enum):
     @property
     def is_out(self) -> bool:
         return self is not Verdict.INSIDE
-
-
-def _scalar(reading: Reading) -> Decimal:
-    """The bare number behind any reading."""
-    if isinstance(reading, Permeability):
-        return Decimal(reading.value)
-    return reading.value
 
 
 def _rebuild(sample: Reading, value: Decimal) -> Reading:
@@ -79,7 +73,7 @@ class Band:
             if end is not None:
                 self.kind.require_reading(end)
         two_ended = self.low is not None and self.high is not None
-        if two_ended and _scalar(self.low) > _scalar(self.high):  # type: ignore[arg-type]
+        if two_ended and scalar_of(self.low) > scalar_of(self.high):
             raise BadInputError(f"the {self.kind.label} band runs from {self.low} to {self.high}")
 
     @classmethod
@@ -123,21 +117,21 @@ class Band:
         """The aim, which only exists when the band has two ends."""
         if self.low is None or self.high is None:
             raise BadInputError(f"a one ended {self.kind.label} band has no midpoint")
-        return _rebuild(self.low, (_scalar(self.low) + _scalar(self.high)) / 2)
+        return _rebuild(self.low, (scalar_of(self.low) + scalar_of(self.high)) / 2)
 
     @property
     def width(self) -> Decimal:
         if self.low is None or self.high is None:
             raise BadInputError(f"a one ended {self.kind.label} band has no width")
-        return _scalar(self.high) - _scalar(self.low)
+        return scalar_of(self.high) - scalar_of(self.low)
 
     def verdict(self, reading: object) -> Verdict:
         """Where a reading sits, with both limits inclusive."""
         checked = self.kind.require_reading(reading)
-        value = _scalar(checked)
-        if self.low is not None and value < _scalar(self.low):
+        value = scalar_of(checked)
+        if self.low is not None and value < scalar_of(self.low):
             return Verdict.BELOW
-        if self.high is not None and value > _scalar(self.high):
+        if self.high is not None and value > scalar_of(self.high):
             return Verdict.ABOVE
         return Verdict.INSIDE
 
@@ -157,8 +151,8 @@ class Band:
             )
         assert self.low is not None
         assert self.high is not None
-        centre = (_scalar(self.low) + _scalar(self.high)) / 2
-        half = (_scalar(self.high) - _scalar(self.low)) / 2 * ratio
+        centre = (scalar_of(self.low) + scalar_of(self.high)) / 2
+        half = (scalar_of(self.high) - scalar_of(self.low)) / 2 * ratio
         return Band(
             kind=self.kind,
             low=_rebuild(self.low, centre - half),

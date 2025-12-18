@@ -35,6 +35,7 @@ from mullerbox.analysis.control import MIN_POINTS
 from mullerbox.errors import BadInputError, RuleError
 from mullerbox.props.kind import PropertyKind
 from mullerbox.spec.band import Band
+from mullerbox.units.reading import scalar_of
 
 # A slope under this many units per reading is not going anywhere.
 FLAT_SLOPE = Decimal("0.001")
@@ -173,20 +174,18 @@ def project(trend: Trend, band: Band) -> Projection:
         raise BadInputError(
             f"a {trend.kind.label} trend cannot be projected onto a {band.kind.label} band"
         )
-    from mullerbox.spec.band import _scalar
-
     if trend.direction is Direction.RISING and band.high is not None:
         return Projection(
             trend=trend,
             band=band,
-            readings_to_limit=trend.readings_to(_scalar(band.high)),
+            readings_to_limit=trend.readings_to(scalar_of(band.high)),
             limit_reached="upper",
         )
     if trend.direction is Direction.FALLING and band.low is not None:
         return Projection(
             trend=trend,
             band=band,
-            readings_to_limit=trend.readings_to(_scalar(band.low)),
+            readings_to_limit=trend.readings_to(scalar_of(band.low)),
             limit_reached="lower",
         )
     return Projection(trend=trend, band=band, readings_to_limit=None, limit_reached="none")
