@@ -19,6 +19,7 @@ from datetime import date
 from mullerbox.errors import BadInputError, NotFoundError
 from mullerbox.programme.schedule import Frequency, Schedule
 from mullerbox.props.kind import PropertyKind
+from mullerbox.store.coding import decode
 from mullerbox.store.connection import Book
 
 
@@ -68,20 +69,8 @@ def load_schedule(book: Book) -> Schedule:
         raise NotFoundError("testing programme", "any property")
     intervals: dict[PropertyKind, Frequency] = {}
     for row in rows:
-        name = str(row["property"])
-        try:
-            kind = PropertyKind[name]
-        except KeyError:
-            raise BadInputError(
-                f"the programme carries {name!r}, which is not a property"
-            ) from None
-        frequency_name = str(row["frequency"])
-        try:
-            intervals[kind] = Frequency[frequency_name]
-        except KeyError:
-            raise BadInputError(
-                f"the programme carries frequency {frequency_name!r}, which is not one"
-            ) from None
+        kind = decode(str(row["property"]), PropertyKind, "a property")
+        intervals[kind] = decode(str(row["frequency"]), Frequency, "a testing frequency")
     return Schedule(intervals=intervals)
 
 

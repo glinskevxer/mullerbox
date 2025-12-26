@@ -24,6 +24,7 @@ from mullerbox.core.batch import CoreBatch
 from mullerbox.core.binder import Binder, BinderSystem
 from mullerbox.core.testing import TensileResult
 from mullerbox.errors import BadInputError, DuplicateError, NotFoundError
+from mullerbox.store.coding import decode
 from mullerbox.store.connection import Book
 from mullerbox.units.bulk import Pounds
 from mullerbox.units.duration import Seconds
@@ -70,11 +71,7 @@ def load_system(book: Book, name: str) -> BinderSystem:
     )
     if row is None:
         raise NotFoundError("binder system", name)
-    binder_name = str(row["binder"])
-    try:
-        binder = Binder[binder_name]
-    except KeyError:
-        raise BadInputError(f"the book carries binder {binder_name!r}, which is not one") from None
+    binder = decode(str(row["binder"]), Binder, "a binder")
     return BinderSystem(
         binder=binder,
         resin=Percent(str(row["resin_pct"])),

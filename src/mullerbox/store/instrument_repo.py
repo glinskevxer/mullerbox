@@ -17,7 +17,8 @@ from datetime import date
 
 from mullerbox.cal.instrument import Instrument, InstrumentKind
 from mullerbox.cal.window import CalibrationWindow
-from mullerbox.errors import BadInputError, DuplicateError, NotFoundError
+from mullerbox.errors import DuplicateError, NotFoundError
+from mullerbox.store.coding import decode
 from mullerbox.store.connection import Book
 
 
@@ -75,12 +76,7 @@ def load_instrument(book: Book, tag: str) -> Instrument:
     row = book.one("SELECT tag, kind FROM instrument WHERE tag = ?", (tag,))
     if row is None:
         raise NotFoundError("instrument", tag)
-    try:
-        kind = InstrumentKind[str(row["kind"])]
-    except KeyError:
-        raise BadInputError(
-            f"instrument {tag} is recorded as a {row['kind']}, which is not a kind"
-        ) from None
+    kind = decode(str(row["kind"]), InstrumentKind, "an instrument kind")
     windows = book.all(
         "SELECT certificate, calibrated_on, due_on FROM calibration"
         " WHERE instrument_tag = ? ORDER BY calibrated_on, certificate",

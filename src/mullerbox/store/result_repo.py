@@ -22,6 +22,7 @@ from datetime import date
 from mullerbox.errors import BadInputError, DuplicateError, NotFoundError
 from mullerbox.props.kind import PropertyKind, Reading
 from mullerbox.props.result import Result
+from mullerbox.store.coding import decode
 from mullerbox.store.connection import Book
 from mullerbox.units.percent import Percent
 from mullerbox.units.pressure import Psi, WetTensile
@@ -158,13 +159,11 @@ def results_of(book: Book, kind: PropertyKind) -> list[Result]:
 
 def _result_from(row: object, sample_id: str) -> Result:
     mapping = row  # sqlite3.Row supports mapping access
-    property_name = str(mapping["property"])  # type: ignore[index]
-    try:
-        kind = PropertyKind[property_name]
-    except KeyError:
-        raise BadInputError(
-            f"the book carries a result for {property_name!r}, which is not a property"
-        ) from None
+    kind = decode(
+        str(mapping["property"]),  # type: ignore[index]
+        PropertyKind,
+        "a property",
+    )
     return Result(
         kind=kind,
         reading=_reading_from(

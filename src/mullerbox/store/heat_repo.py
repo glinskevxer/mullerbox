@@ -22,6 +22,7 @@ from mullerbox.burnout.pour import Pour
 from mullerbox.errors import BadInputError, DuplicateError, NotFoundError
 from mullerbox.heat.heat import Casting, Disposition, Heat, Mold
 from mullerbox.spec.pattern import PatternClass
+from mullerbox.store.coding import decode
 from mullerbox.store.connection import Book
 from mullerbox.units.bulk import Pounds
 
@@ -90,13 +91,13 @@ def load_heat(book: Book, heat_number: str) -> Heat:
         molds.append(
             Mold(
                 mold_id=mold_id,
-                pattern=_pattern_from(str(mold_row["pattern"])),
+                pattern=decode(str(mold_row["pattern"]), PatternClass, "a pattern class"),
                 sand=Pounds(str(mold_row["sand_lb"])),
                 castings=tuple(
                     Casting(
                         casting_id=str(c["casting_id"]),
                         weight=Pounds(str(c["weight_lb"])),
-                        disposition=_disposition_from(str(c["disposition"])),
+                        disposition=decode(str(c["disposition"]), Disposition, "a disposition"),
                     )
                     for c in casting_rows
                 ),
@@ -157,7 +158,7 @@ def load_pours(book: Book, on: date) -> list[Pour]:
     return [
         Pour(
             poured_on=date.fromisoformat(str(r["poured_on"])),
-            pattern=_pattern_from(str(r["pattern"])),
+            pattern=decode(str(r["pattern"]), PatternClass, "a pattern class"),
             metal=Pounds(str(r["metal_lb"])),
             sand=Pounds(str(r["sand_lb"])),
         )
@@ -184,20 +185,6 @@ def pour_from_heat(book: Book, heat_number: str, pattern: PatternClass) -> Pour:
         metal = metal + mold.metal
         sand = sand + mold.sand
     return Pour(poured_on=heat.poured_on, pattern=pattern, metal=metal, sand=sand)
-
-
-def _pattern_from(name: str) -> PatternClass:
-    try:
-        return PatternClass[name]
-    except KeyError:
-        raise BadInputError(f"the book carries pattern class {name!r}, which is not one") from None
-
-
-def _disposition_from(name: str) -> Disposition:
-    try:
-        return Disposition[name]
-    except KeyError:
-        raise BadInputError(f"the book carries disposition {name!r}, which is not one") from None
 
 
 __all__ = [

@@ -127,5 +127,5 @@ class TestBookkeeping:
     def test_an_unrecognised_kind_on_the_book_is_refused(self, book: Book) -> None:
         save_instrument(book, usm())
         book.execute("UPDATE instrument SET kind = 'DOWSING_ROD' WHERE tag = 'USM-1'")
-        with pytest.raises(BadInputError, match="which is not a kind"):
+        with pytest.raises(BadInputError, match="as an instrument kind, which is not one of"):
             load_instrument(book, "USM-1")

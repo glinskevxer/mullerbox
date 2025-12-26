@@ -149,7 +149,7 @@ class TestCorruptRows:
     def test_an_unknown_property_is_refused(self, book: Book) -> None:
         save_sheet(book, sheet(), JAN)
         book.execute("UPDATE spec_band SET property = 'STICKINESS' WHERE property = 'LOI'")
-        with pytest.raises(BadInputError, match="which is not a property"):
+        with pytest.raises(BadInputError, match="as a property, which is not one of"):
             load_sheet(book, "system sand 2025")
 
     def test_an_unknown_scale_is_refused(self, book: Book) -> None:

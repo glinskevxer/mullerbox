@@ -22,6 +22,7 @@ from decimal import Decimal, InvalidOperation
 
 from mullerbox.addition.material import Material
 from mullerbox.errors import BadInputError, DuplicateError, NotFoundError
+from mullerbox.store.coding import decode
 from mullerbox.store.connection import Book
 from mullerbox.supplier.lot import Certificate, Lot, LotState
 from mullerbox.units.bulk import Pounds
@@ -114,11 +115,11 @@ def load_lot(book: Book, lot_id: str) -> Lot:
         built[field] = Percent(number) if _CLAIM_IS_PERCENT[field] else number
     return Lot(
         lot_id=str(row["lot_id"]),
-        material=_material_from(str(row["material"])),
+        material=decode(str(row["material"]), Material, "a material"),
         mass=Pounds(str(row["mass_lb"])),
         delivered_on=date.fromisoformat(str(row["delivered_on"])),
         certificate=Certificate(number=str(row["certificate"]), **built),  # type: ignore[arg-type]
-        state=_state_from(str(row["state"])),
+        state=decode(str(row["state"]), LotState, "a lot state"),
         released_by=str(row["released_by"]),
         note=str(row["note"]),
     )
@@ -144,20 +145,6 @@ def held(book: Book) -> list[Lot]:
         (LotState.RELEASED.name,),
     )
     return [load_lot(book, str(r["lot_id"])) for r in rows]
-
-
-def _material_from(name: str) -> Material:
-    try:
-        return Material[name]
-    except KeyError:
-        raise BadInputError(f"the book carries material {name!r}, which is not one") from None
-
-
-def _state_from(name: str) -> LotState:
-    try:
-        return LotState[name]
-    except KeyError:
-        raise BadInputError(f"the book carries lot state {name!r}, which is not one") from None
 
 
 __all__ = ["held", "list_lots", "load_lot", "lot_exists", "save_lot", "update_lot"]

@@ -123,13 +123,13 @@ class TestCorruptRows:
     def test_an_unknown_property_is_refused(self, book: Book) -> None:
         set_interval(book, COMP, Frequency.EVERY_SHIFT, JAN, "line critical")
         book.execute("UPDATE test_interval SET property = 'STICKINESS'")
-        with pytest.raises(BadInputError, match="which is not a property"):
+        with pytest.raises(BadInputError, match="as a property, which is not one of"):
             load_schedule(book)
 
     def test_an_unknown_frequency_is_refused(self, book: Book) -> None:
         set_interval(book, COMP, Frequency.EVERY_SHIFT, JAN, "line critical")
         book.execute("UPDATE test_interval SET frequency = 'FORTNIGHTLY'")
-        with pytest.raises(BadInputError, match="which is not one"):
+        with pytest.raises(BadInputError, match="as a testing frequency, which is not one of"):
             load_schedule(book)
 
     def test_a_stray_property_in_the_results_is_skipped(self, book: Book) -> None:

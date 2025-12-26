@@ -27,6 +27,7 @@ from mullerbox.errors import BadInputError, DuplicateError, NotFoundError
 from mullerbox.props.kind import PropertyKind, Reading
 from mullerbox.spec.band import Band
 from mullerbox.spec.sheet import SpecSheet
+from mullerbox.store.coding import decode
 from mullerbox.store.connection import Book
 from mullerbox.units.percent import Percent
 from mullerbox.units.pressure import Psi, WetTensile
@@ -97,13 +98,7 @@ def load_sheet(book: Book, name: str) -> SpecSheet:
     )
     bands: dict[PropertyKind, Band] = {}
     for row in rows:
-        property_name = str(row["property"])
-        try:
-            kind = PropertyKind[property_name]
-        except KeyError:
-            raise BadInputError(
-                f"the book carries a band for {property_name!r}, which is not a property"
-            ) from None
+        kind = decode(str(row["property"]), PropertyKind, "a property")
         scale = str(row["scale"])
         bands[kind] = Band(
             kind=kind,

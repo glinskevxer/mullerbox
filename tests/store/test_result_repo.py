@@ -145,7 +145,7 @@ class TestTheScaleIsStoredWithTheReading:
     def test_a_property_the_book_does_not_know_is_refused_on_load(self, book: Book) -> None:
         save_result(book, result())
         book.execute("UPDATE result SET property = 'STICKINESS'")
-        with pytest.raises(BadInputError, match="which is not a property"):
+        with pytest.raises(BadInputError, match="as a property, which is not one of"):
             load_results(book, "S-100")
 
 
