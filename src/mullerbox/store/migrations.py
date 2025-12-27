@@ -318,6 +318,24 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=9,
+        name="sieve wear checks",
+        statements=(
+            """
+            CREATE TABLE wear_check (
+                series_name TEXT NOT NULL REFERENCES screen_series (name),
+                mesh_number INTEGER NOT NULL,
+                checked_on  TEXT NOT NULL,
+                measured_um INTEGER NOT NULL,
+                PRIMARY KEY (series_name, mesh_number, checked_on)
+            )
+            """,
+            """
+            CREATE INDEX wear_by_date ON wear_check (series_name, checked_on)
+            """,
+        ),
+    ),
 )
 
 
