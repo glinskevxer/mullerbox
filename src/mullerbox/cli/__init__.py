@@ -14,6 +14,7 @@ from mullerbox.cli import mulling as _mulling
 from mullerbox.cli import production as _production
 from mullerbox.cli import programme_cmd as _programme
 from mullerbox.cli import reports as _reports
+from mullerbox.cli import screens_cmd as _screens
 from mullerbox.cli import specs as _specs
 from mullerbox.cli import systems as _systems
 from mullerbox.cli.main import main
@@ -32,6 +33,7 @@ _REGISTERED = (
     _production,
     _programme,
     _reports,
+    _screens,
     _specs,
     _systems,
 )
