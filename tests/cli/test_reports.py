@@ -209,3 +209,104 @@ class TestChart:
         result = run("report", "chart", "stickiness", book=book)
         assert result.exit_code == EXIT_RULE
         assert "not a sand property" in result.output
+
+
+class TestAnalyse:
+    """Its own book, with no stray readings from the shared fixture.
+
+    A single leftover reading two points away from a run is an outlier the
+    control chart correctly flags, which would make every state in here read
+    as drifting for a reason that has nothing to do with what is being tested.
+    """
+
+    @pytest.fixture
+    def clean(self, tmp_path: Path) -> Path:
+        target = initialised(tmp_path)
+        run("spec", "load-default", "--on", "2025-01-06", book=target)
+        run("catalogue", "instrument-add", "RAM-1", "compactability", book=target)
+        run(
+            "catalogue",
+            "calibrate",
+            "RAM-1",
+            "C-1",
+            "--on",
+            "2025-01-06",
+            "--days",
+            "400",
+            book=target,
+        )
+        return target
+
+    def _long_run(self, book: Path, low: str, high: str, count: int = 20) -> None:
+        for n in range(count):
+            sample = f"A-{n:03d}"
+            run(
+                "lab",
+                "sample-add",
+                sample,
+                "--on",
+                WHEN,
+                "--point",
+                "muller",
+                "--system",
+                "two",
+                book=book,
+            )
+            run(
+                "lab",
+                "result-add",
+                sample,
+                "comp",
+                high if n % 2 else low,
+                "--instrument",
+                "RAM-1",
+                "--on",
+                WHEN,
+                book=book,
+            )
+
+    def test_too_little_history_is_named_rather_than_guessed(self, clean: Path) -> None:
+        result = run("report", "analyse", "heavy jobbing", "--on", WHEN, book=clean)
+        assert result.exit_code == 0
+        assert "not enough history" in result.output
+        assert "run more tests" in result.output
+
+    def test_a_settled_property_says_leave_it_alone(self, clean: Path) -> None:
+        self._long_run(clean, "40.9", "41.1")
+        result = run("report", "analyse", "heavy jobbing", "--on", WHEN, book=clean)
+        assert "stable and capable" in result.output
+        assert "leave it alone" in result.output
+
+    def test_a_consistently_wrong_property_says_move_the_recipe(self, clean: Path) -> None:
+        self._long_run(clean, "49.9", "50.1")
+        result = run("report", "analyse", "heavy jobbing", "--on", WHEN, book=clean)
+        assert "stable and not capable" in result.output
+        assert "move the recipe" in result.output
+
+    def test_the_class_changes_the_answer(self, clean: Path) -> None:
+        self._long_run(clean, "43.9", "44.1")
+        heavy = run("report", "analyse", "heavy jobbing", "--on", WHEN, book=clean)
+        thin = run("report", "analyse", "thin wall", "--on", WHEN, book=clean)
+        assert heavy.output != thin.output
+
+    def test_only_action_hides_the_settled_ones(self, clean: Path) -> None:
+        self._long_run(clean, "40.9", "41.1")
+        everything = run("report", "analyse", "heavy jobbing", "--on", WHEN, book=clean)
+        filtered = run(
+            "report", "analyse", "heavy jobbing", "--on", WHEN, "--only-action", book=clean
+        )
+        assert "compactability" in everything.output
+        assert "nothing needs doing" in filtered.output
+
+    def test_the_summary_counts_what_needs_action(self, clean: Path) -> None:
+        self._long_run(clean, "40.9", "41.1")
+        result = run("report", "analyse", "heavy jobbing", "--on", WHEN, book=clean)
+        assert "controlled properties need action" in result.output
+
+    def test_an_unknown_class_is_refused(self, clean: Path) -> None:
+        result = run("report", "analyse", "prototype", "--on", WHEN, book=clean)
+        assert result.exit_code == EXIT_RULE
+
+    def test_a_date_before_any_spec_is_refused(self, clean: Path) -> None:
+        result = run("report", "analyse", "heavy jobbing", "--on", "2024-01-01", book=clean)
+        assert result.exit_code == EXIT_RULE

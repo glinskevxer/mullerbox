@@ -15,13 +15,16 @@ answer.
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import click
 
 from mullerbox.analysis.control import MIN_POINTS, chart_of
+from mullerbox.analysis.summary import summarise, worst_first
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
 from mullerbox.cli.parsing import read_date
-from mullerbox.props.kind import parse_property
+from mullerbox.props.kind import PropertyKind, parse_property
 from mullerbox.report.layout import Column, Table
 from mullerbox.report.shift import shift_report
 from mullerbox.spec.pattern import parse_pattern_class
@@ -131,4 +134,66 @@ def chart(context: Context, property_name: str) -> None:
         context.say(f"{sample}: {flag}")
 
 
-__all__ = ["chart", "exceptions", "reports", "shift"]
+@reports.command("analyse")
+@click.argument("pattern")
+@click.option("--on", "as_of", required=True, help="Which spec was in force, yyyy-mm-dd.")
+@click.option(
+    "--only-action",
+    is_flag=True,
+    help="Print only the properties that need doing something about.",
+)
+@pass_context
+@handle
+def analyse(context: Context, pattern: str, as_of: str, only_action: bool) -> None:
+    """Read every controlled property three ways and rank what needs doing.
+
+    Takes a pattern class because capability is measured against the band in
+    force, and the band in force depends on the work. The same run of readings
+    is capable for heavy jobbing and not capable for thin wall, and a command
+    that picked a class for you would be answering a question you did not ask.
+    """
+    cls = parse_pattern_class(pattern)
+    when = read_date(as_of)
+    with context.book() as book:
+        sheet = spec_repo.current_sheet(book, when)
+        resolved = resolve(sheet, cls)
+        histories: dict[PropertyKind, list[Decimal]] = {}
+        for kind in sorted(resolved.covers, key=lambda k: k.name):
+            histories[kind] = [scalar_of(r.reading) for r in result_repo.results_of(book, kind)]
+    summaries = [
+        summarise(kind, resolved.band_for(kind), values) for kind, values in histories.items()
+    ]
+    ranked = worst_first(summaries)
+    if only_action:
+        ranked = [s for s in ranked if s.state.needs_action]
+    if not ranked:
+        context.say(f"nothing needs doing on {cls.label} work as at {when}")
+        return
+    table = Table(
+        columns=(
+            Column("property"),
+            Column.number("readings"),
+            Column("state"),
+            Column.number("to the band"),
+            Column("what to do"),
+        )
+    )
+    for summary in ranked:
+        due = summary.readings_to_band
+        table.add(
+            summary.kind.label,
+            str(summary.readings),
+            summary.state.label,
+            "" if due is None else str(due),
+            summary.state.action,
+        )
+    for line in table.render():
+        context.say(line)
+    needing = [s for s in ranked if s.state.needs_action]
+    context.say("")
+    context.say(
+        f"{len(needing)} of {len(summaries)} controlled properties need action on {cls.label} work"
+    )
+
+
+__all__ = ["analyse", "chart", "exceptions", "reports", "shift"]
