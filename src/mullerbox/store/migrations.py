@@ -336,6 +336,25 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=10,
+        name="the pattern register",
+        statements=(
+            """
+            CREATE TABLE pattern (
+                pattern_id     TEXT PRIMARY KEY,
+                name           TEXT NOT NULL,
+                pattern_class  TEXT NOT NULL,
+                flask_cu_ft    TEXT NOT NULL,
+                cavities       INTEGER NOT NULL,
+                casting_lb     TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX pattern_by_class ON pattern (pattern_class)
+            """,
+        ),
+    ),
 )
 
 
