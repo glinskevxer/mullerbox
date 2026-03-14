@@ -39,6 +39,7 @@ SHIPPED: dict[int, str] = {
     8: "1225bb32a3ed42e0",
     9: "7240e4a655401a1e",
     10: "ac15b2d55cb48e84",
+    11: "7ecdae6427647e4e",
 }
 
 
@@ -120,6 +121,7 @@ def applies_cleanly() -> list[str]:
         "core_tensile",
         "wear_check",
         "pattern",
+        "recorded_cycle",
     }
     missing = sorted(expected - tables)
     return [f"the schema has no {name!r} table" for name in missing]

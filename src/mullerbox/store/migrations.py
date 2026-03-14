@@ -355,6 +355,26 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=11,
+        name="recorded muller cycles",
+        statements=(
+            """
+            CREATE TABLE recorded_cycle (
+                batch_id     TEXT PRIMARY KEY,
+                run_on       TEXT NOT NULL,
+                dry_mull_s   INTEGER NOT NULL,
+                wet_mull_s   INTEGER NOT NULL,
+                bentonite_lb TEXT NOT NULL,
+                water_lb     TEXT NOT NULL,
+                discharged   INTEGER NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX cycle_by_date ON recorded_cycle (run_on)
+            """,
+        ),
+    ),
 )
 
 
