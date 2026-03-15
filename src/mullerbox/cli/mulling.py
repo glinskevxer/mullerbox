@@ -22,9 +22,11 @@ from mullerbox.cli.main import main
 from mullerbox.cli.parsing import read_date
 from mullerbox.errors import NotFoundError
 from mullerbox.muller.cycle import Cycle
+from mullerbox.muller.history import RecordedCycle
 from mullerbox.muller.plan import plan_batch
+from mullerbox.report.layout import Column, Table
 from mullerbox.spec.pattern import parse_pattern_class
-from mullerbox.store import heat_repo
+from mullerbox.store import cycle_repo, heat_repo
 from mullerbox.units.bulk import Pounds
 from mullerbox.units.duration import Seconds
 from mullerbox.units.percent import Percent
@@ -159,4 +161,88 @@ def _combined(pours: list[Pour]) -> Pour:
     )
 
 
-__all__ = ["check_cycle", "mulling", "plan"]
+@mulling.command("record")
+@click.argument("batch_id")
+@click.option("--on", "run_on", required=True, help="yyyy-mm-dd")
+@click.option("--dry", required=True, help="Dry mull seconds as the machine ran.")
+@click.option("--wet", required=True, help="Wet mull seconds as the machine ran.")
+@click.option("--bentonite", default="0", help="Bentonite charged, pounds.")
+@click.option("--water", default="0", help="Water charged, pounds.")
+@click.option(
+    "--not-discharged",
+    is_flag=True,
+    help="The batch was left in the muller.",
+)
+@pass_context
+@handle
+def record(
+    context: Context,
+    batch_id: str,
+    run_on: str,
+    dry: str,
+    wet: str,
+    bentonite: str,
+    water: str,
+    not_discharged: bool,
+) -> None:
+    """Record what the muller actually did, whatever the plan called for.
+
+    This accepts a schedule ``check-cycle`` would refuse, on purpose. The plan
+    is checked before the batch runs; the log records what happened, and a run
+    of short mulls is the finding rather than an error.
+    """
+    recorded = RecordedCycle(
+        batch_id=batch_id,
+        dry_mull=Seconds(dry),
+        wet_mull=Seconds(wet),
+        bentonite=Pounds(bentonite),
+        water=Pounds(water),
+        discharged=not not_discharged,
+    )
+    with context.book() as book:
+        cycle_repo.record_cycle(book, recorded, read_date(run_on))
+    context.say(str(recorded))
+    if recorded.mulled_short:
+        context.warn(f"batch {batch_id} mulled short of the schedule; recorded anyway")
+
+
+@mulling.command("history")
+@click.option("--from", "start", required=True, help="yyyy-mm-dd")
+@click.option("--to", "end", required=True, help="yyyy-mm-dd")
+@click.option("--planned-water", default="180", help="What the plan called for, pounds.")
+@pass_context
+@handle
+def history(context: Context, start: str, end: str, planned_water: str) -> None:
+    """Read a run of recorded cycles for what the batch sheets cannot show."""
+    with context.book() as book:
+        found = cycle_repo.history_between(book, read_date(start), read_date(end))
+    if not len(found):
+        context.say(f"no cycles were recorded between {start} and {end}")
+        return
+    table = Table(
+        columns=(
+            Column("batch"),
+            Column.number("dry"),
+            Column.number("wet"),
+            Column.number("water"),
+            Column("mull"),
+            Column("discharged"),
+        )
+    )
+    for cycle in found.cycles:
+        table.add(
+            cycle.batch_id,
+            str(cycle.dry_mull),
+            str(cycle.wet_mull),
+            str(cycle.water),
+            "SHORT" if cycle.mulled_short else "ok",
+            "yes" if cycle.discharged else "NO",
+        )
+    for line in table.render():
+        context.say(line)
+    context.say("")
+    for finding in found.findings(Pounds(planned_water)):
+        context.say(finding)
+
+
+__all__ = ["check_cycle", "history", "mulling", "plan", "record"]

@@ -219,3 +219,182 @@ class TestCheckCycle:
             book=book,
         )
         assert result.exit_code == 0
+
+
+class TestRecordingWhatHappened:
+    def test_a_normal_cycle_records(self, book: Path) -> None:
+        result = run(
+            "muller",
+            "record",
+            "B-1",
+            "--on",
+            WHEN,
+            "--dry",
+            "60",
+            "--wet",
+            "120",
+            "--bentonite",
+            "140",
+            "--water",
+            "180",
+            book=book,
+        )
+        assert result.exit_code == 0
+        assert "to schedule" in result.output
+
+    def test_a_short_cycle_records_and_warns(self, book: Path) -> None:
+        result = run(
+            "muller",
+            "record",
+            "B-2",
+            "--on",
+            WHEN,
+            "--dry",
+            "60",
+            "--wet",
+            "20",
+            "--bentonite",
+            "140",
+            "--water",
+            "180",
+            book=book,
+        )
+        assert result.exit_code == 0
+        assert "short" in result.output
+        assert "recorded anyway" in result.output
+
+    def test_check_cycle_would_have_refused_the_same_schedule(self, book: Path) -> None:
+        refused = run(
+            "muller",
+            "check-cycle",
+            "--batch",
+            "B-3",
+            "--return-sand",
+            "6000",
+            "--water",
+            "180",
+            "--dry",
+            "60",
+            "--wet",
+            "20",
+            book=book,
+        )
+        assert refused.exit_code == EXIT_RULE
+        recorded = run(
+            "muller",
+            "record",
+            "B-3",
+            "--on",
+            WHEN,
+            "--dry",
+            "60",
+            "--wet",
+            "20",
+            "--water",
+            "180",
+            book=book,
+        )
+        assert recorded.exit_code == 0
+
+    def test_a_batch_left_in_the_muller(self, book: Path) -> None:
+        run(
+            "muller",
+            "record",
+            "B-4",
+            "--on",
+            WHEN,
+            "--dry",
+            "60",
+            "--wet",
+            "120",
+            "--not-discharged",
+            book=book,
+        )
+        result = run("muller", "history", "--from", WHEN, "--to", WHEN, book=book)
+        assert "NO" in result.output
+        assert "never discharged" in result.output
+
+    def test_the_same_batch_twice_is_refused(self, book: Path) -> None:
+        run("muller", "record", "B-5", "--on", WHEN, "--dry", "60", "--wet", "120", book=book)
+        result = run(
+            "muller", "record", "B-5", "--on", WHEN, "--dry", "60", "--wet", "120", book=book
+        )
+        assert result.exit_code == EXIT_RULE
+
+
+class TestHistory:
+    def test_a_quiet_span_says_so(self, book: Path) -> None:
+        result = run("muller", "history", "--from", WHEN, "--to", WHEN, book=book)
+        assert result.exit_code == 0
+        assert "no cycles were recorded" in result.output
+
+    def test_a_clean_run_has_nothing_to_say(self, book: Path) -> None:
+        for n in range(10):
+            run(
+                "muller",
+                "record",
+                f"C-{n}",
+                "--on",
+                WHEN,
+                "--dry",
+                "60",
+                "--wet",
+                "120",
+                "--bentonite",
+                "140",
+                "--water",
+                "180",
+                book=book,
+            )
+        result = run("muller", "history", "--from", WHEN, "--to", WHEN, book=book)
+        assert "nothing to say about the machine" in result.output
+
+    def test_a_run_of_short_mulls_is_reported(self, book: Path) -> None:
+        for n in range(5):
+            run(
+                "muller",
+                "record",
+                f"S-{n}",
+                "--on",
+                WHEN,
+                "--dry",
+                "60",
+                "--wet",
+                "20",
+                "--bentonite",
+                "140",
+                "--water",
+                "180",
+                book=book,
+            )
+        result = run("muller", "history", "--from", WHEN, "--to", WHEN, book=book)
+        assert "SHORT" in result.output
+        assert "outrunning the muller" in result.output
+
+    def test_water_heavy_cycles_are_reported(self, book: Path) -> None:
+        for n in range(5):
+            run(
+                "muller",
+                "record",
+                f"W-{n}",
+                "--on",
+                WHEN,
+                "--dry",
+                "60",
+                "--wet",
+                "120",
+                "--bentonite",
+                "140",
+                "--water",
+                "300",
+                book=book,
+            )
+        result = run(
+            "muller", "history", "--from", WHEN, "--to", WHEN, "--planned-water", "180", book=book
+        )
+        assert "undeveloped bond" in result.output
+
+    def test_a_backwards_span_is_refused(self, book: Path) -> None:
+        result = run("muller", "history", "--from", "2026-01-01", "--to", "2025-01-01", book=book)
+        assert result.exit_code == EXIT_RULE
+        assert "backwards" in result.output
