@@ -142,3 +142,53 @@ class TestInspections:
         text = INSPECTIONS + "C-3,shipped,blow\n"
         result = run("import", "inspections", str(write(tmp_path, "i.csv", text)), book=book)
         assert "shipped with 1 defects" in result.output
+
+
+CYCLES = (
+    "batch,run,dry,wet,bentonite,water,discharged\n"
+    "B-1,2026-03-23,60,120,140,180,yes\n"
+    "B-2,2026-03-23,60,20,140,180,yes\n"
+    "B-3,2026-03-24,60,120,,,no\n"
+)
+
+
+class TestCycles:
+    def test_a_clean_log_loads(self, book: Path, tmp_path: Path) -> None:
+        path = write(tmp_path, "cycles.csv", CYCLES)
+        result = run("import", "cycles", str(path), book=book)
+        assert result.exit_code == 0
+        assert "loaded 3 cycles over 2 days" in result.output
+
+    def test_short_mulls_are_loaded_not_dropped(self, book: Path, tmp_path: Path) -> None:
+        path = write(tmp_path, "cycles.csv", CYCLES)
+        result = run("import", "cycles", str(path), book=book)
+        assert "1 of them mulled short" in result.output
+
+    def test_the_history_can_then_be_read(self, book: Path, tmp_path: Path) -> None:
+        path = write(tmp_path, "cycles.csv", CYCLES)
+        run("import", "cycles", str(path), book=book)
+        result = run("muller", "history", "--from", "2026-03-23", "--to", "2026-03-24", book=book)
+        assert result.exit_code == 0
+        assert "SHORT" in result.output
+        assert "never discharged" in result.output
+
+    def test_loading_the_same_file_twice_skips_rather_than_failing(
+        self, book: Path, tmp_path: Path
+    ) -> None:
+        path = write(tmp_path, "cycles.csv", CYCLES)
+        run("import", "cycles", str(path), book=book)
+        again = run("import", "cycles", str(path), book=book)
+        assert again.exit_code == 0
+        assert "loaded 0 cycles" in again.output
+        assert "3 already on the book" in again.output
+
+    def test_a_blank_discharge_flag_is_one_problem(self, book: Path, tmp_path: Path) -> None:
+        text = CYCLES + "B-4,2026-03-24,60,120,,,\n"
+        result = run("import", "cycles", str(write(tmp_path, "c.csv", text)), book=book)
+        assert "does not report it" in result.output
+        assert "loaded 3 cycles" in result.output
+
+    def test_strict_refuses_the_whole_file(self, book: Path, tmp_path: Path) -> None:
+        text = CYCLES + "B-4,2026-03-24,60,120,,,\n"
+        result = run("import", "cycles", str(write(tmp_path, "c.csv", text)), "--strict", book=book)
+        assert result.exit_code == EXIT_RULE

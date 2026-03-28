@@ -20,10 +20,17 @@ from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
 from mullerbox.errors import ConfigError
 from mullerbox.ingest.bench import load_bench
+from mullerbox.ingest.cycles import load_cycles
 from mullerbox.ingest.production import load_inspections, load_pours
 from mullerbox.ingest.reader import Problem, read_sheet
 from mullerbox.ingest.sieve import load_sieve
-from mullerbox.store import heat_repo, result_repo, series_repo, sieve_repo
+from mullerbox.store import (
+    cycle_repo,
+    heat_repo,
+    result_repo,
+    series_repo,
+    sieve_repo,
+)
 
 
 @main.group("import")
@@ -120,8 +127,42 @@ def import_inspections(context: Context, path: str, strict: bool) -> None:
     )
 
 
+@importing.command("cycles")
+@click.argument("path", type=click.Path())
+@click.option("--strict", is_flag=True, help="Refuse the file if any row is bad.")
+@pass_context
+@handle
+def import_cycles(context: Context, path: str, strict: bool) -> None:
+    """Load the muller controller's log of what it actually did.
+
+    Rows the planner would have refused are loaded, not rejected. A short mull
+    is the observation the log exists to carry, and a loader that dropped them
+    would leave the machine's own record looking cleaner than the machine.
+    """
+    load = load_cycles(read_sheet(path))
+    _report(context, load.problems, strict)
+    written = 0
+    skipped = 0
+    with context.book() as book:
+        for logged in load.cycles:
+            if cycle_repo.cycle_exists(book, logged.cycle.batch_id):
+                context.warn(f"batch {logged.cycle.batch_id} is already on the book, skipping")
+                skipped += 1
+                continue
+            cycle_repo.record_cycle(book, logged.cycle, logged.run_on)
+            written += 1
+    short = sum(1 for c in load.cycles if c.cycle.mulled_short)
+    context.say(
+        f"loaded {written} cycles over {len(load.days)} days, {skipped} already "
+        f"on the book, {len(load.problems)} problems"
+    )
+    if short:
+        context.say(f"{short} of them mulled short of the schedule")
+
+
 __all__ = [
     "import_bench",
+    "import_cycles",
     "import_inspections",
     "import_pours",
     "import_sieve",
