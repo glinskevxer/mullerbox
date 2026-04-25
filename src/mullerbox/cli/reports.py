@@ -20,6 +20,7 @@ from decimal import Decimal
 import click
 
 from mullerbox.analysis.control import MIN_POINTS, chart_of
+from mullerbox.analysis.correlation import correlate, paired
 from mullerbox.analysis.summary import summarise, worst_first
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
@@ -196,4 +197,78 @@ def analyse(context: Context, pattern: str, as_of: str, only_action: bool) -> No
     )
 
 
-__all__ = ["analyse", "chart", "exceptions", "reports", "shift"]
+@reports.command("correlate")
+@click.argument("first_name")
+@click.argument("second_name")
+@pass_context
+@handle
+def correlate_command(context: Context, first_name: str, second_name: str) -> None:
+    """Say whether two properties move together across the samples on the book.
+
+    Pairs by sample, so two readings taken the same morning on different pulls
+    of sand do not count as a pair. That is stricter than it looks and it is the
+    only pairing that means anything.
+    """
+    first = parse_property(first_name)
+    second = parse_property(second_name)
+    with context.book() as book:
+        gathered: dict[str, dict[PropertyKind, Decimal]] = {}
+        for kind in (first, second):
+            for result in result_repo.results_of(book, kind):
+                gathered.setdefault(result.sample_id, {})[kind] = scalar_of(result.reading)
+    found = correlate(gathered, first, second)
+    context.say(found.finding())
+    context.say("")
+    context.say(
+        f"paired on {found.pairs} samples; samples carrying only one of the two were left out"
+    )
+
+
+@reports.command("pairs")
+@click.argument("first_name")
+@click.argument("second_name")
+@pass_context
+@handle
+def pairs_command(context: Context, first_name: str, second_name: str) -> None:
+    """List the samples that carry both properties, which is what a correlation uses."""
+    first = parse_property(first_name)
+    second = parse_property(second_name)
+    with context.book() as book:
+        gathered: dict[str, dict[PropertyKind, Decimal]] = {}
+        for kind in (first, second):
+            for result in result_repo.results_of(book, kind):
+                gathered.setdefault(result.sample_id, {})[kind] = scalar_of(result.reading)
+    both = paired(gathered, first, second)
+    only_one = len(gathered) - len(both)
+    if not both:
+        context.say(f"no sample carries both {first.label} and {second.label}")
+        return
+    table = Table(
+        columns=(
+            Column("sample"),
+            Column.number(first.label),
+            Column.number(second.label),
+        )
+    )
+    keyed = [
+        sample
+        for sample in sorted(gathered)
+        if first in gathered[sample] and second in gathered[sample]
+    ]
+    for sample, (one, other) in zip(keyed, both, strict=True):
+        table.add(sample, str(one), str(other))
+    for line in table.render():
+        context.say(line)
+    context.say("")
+    context.say(f"{len(both)} paired, {only_one} carrying only one of the two")
+
+
+__all__ = [
+    "analyse",
+    "chart",
+    "correlate_command",
+    "exceptions",
+    "pairs_command",
+    "reports",
+    "shift",
+]

@@ -310,3 +310,156 @@ class TestAnalyse:
     def test_a_date_before_any_spec_is_refused(self, clean: Path) -> None:
         result = run("report", "analyse", "heavy jobbing", "--on", "2024-01-01", book=clean)
         assert result.exit_code == EXIT_RULE
+
+
+class TestCorrelate:
+    @pytest.fixture
+    def paired_book(self, tmp_path: Path) -> Path:
+        target = initialised(tmp_path)
+        run("spec", "load-default", "--on", "2025-01-06", book=target)
+        for tag, kind in (("RAM-1", "compactability"), ("MOIST-1", "moisture")):
+            run("catalogue", "instrument-add", tag, kind, book=target)
+            run(
+                "catalogue",
+                "calibrate",
+                tag,
+                f"C-{tag}",
+                "--on",
+                "2025-01-06",
+                "--days",
+                "700",
+                book=target,
+            )
+        for n in range(12):
+            sample = f"P-{n:03d}"
+            run(
+                "lab",
+                "sample-add",
+                sample,
+                "--on",
+                WHEN,
+                "--point",
+                "muller",
+                "--system",
+                "two",
+                book=target,
+            )
+            run(
+                "lab",
+                "result-add",
+                sample,
+                "h2o",
+                str(3.0 + 0.05 * n),
+                "--instrument",
+                "MOIST-1",
+                "--on",
+                WHEN,
+                book=target,
+            )
+            run(
+                "lab",
+                "result-add",
+                sample,
+                "comp",
+                str(38 + 0.5 * n),
+                "--instrument",
+                "RAM-1",
+                "--on",
+                WHEN,
+                book=target,
+            )
+        return target
+
+    def test_two_properties_moving_together(self, paired_book: Path) -> None:
+        result = run("report", "correlate", "h2o", "comp", book=paired_book)
+        assert result.exit_code == 0
+        assert "move together" in result.output
+        assert "strong" in result.output
+
+    def test_it_makes_no_claim_about_cause(self, paired_book: Path) -> None:
+        result = run("report", "correlate", "h2o", "comp", book=paired_book)
+        assert "nothing about why" in result.output
+
+    def test_it_says_how_many_samples_paired(self, paired_book: Path) -> None:
+        result = run("report", "correlate", "h2o", "comp", book=paired_book)
+        assert "paired on 12 samples" in result.output
+
+    def test_a_property_against_itself_is_refused(self, paired_book: Path) -> None:
+        result = run("report", "correlate", "h2o", "h2o", book=paired_book)
+        assert result.exit_code == EXIT_RULE
+        assert "correlated with itself" in result.output
+
+    def test_too_few_pairs_is_refused(self, book: Path) -> None:
+        result = run("report", "correlate", "comp", "perm", book=book)
+        assert result.exit_code == EXIT_RULE
+        assert "fewest that will carry a coefficient" in result.output
+
+    def test_an_unknown_property_is_refused(self, paired_book: Path) -> None:
+        result = run("report", "correlate", "h2o", "stickiness", book=paired_book)
+        assert result.exit_code == EXIT_RULE
+
+
+class TestPairs:
+    def test_nothing_paired_says_so(self, book: Path) -> None:
+        result = run("report", "pairs", "comp", "perm", book=book)
+        assert result.exit_code == 0
+        assert "no sample carries both" in result.output
+
+    def test_it_lists_the_paired_samples(self, book: Path) -> None:
+        run(
+            "lab",
+            "result-add",
+            "S-100",
+            "perm",
+            "110",
+            "--instrument",
+            "PERM-1",
+            "--on",
+            WHEN,
+            book=book,
+        )
+        result = run("report", "pairs", "comp", "perm", book=book)
+        assert "S-100" in result.output
+        assert "1 paired" in result.output
+
+    def test_it_counts_the_samples_carrying_only_one(self, book: Path) -> None:
+        # S-100 carries both; S-200 carries only permeability.
+        run(
+            "lab",
+            "result-add",
+            "S-100",
+            "perm",
+            "110",
+            "--instrument",
+            "PERM-1",
+            "--on",
+            WHEN,
+            book=book,
+        )
+        run(
+            "lab",
+            "sample-add",
+            "S-200",
+            "--on",
+            WHEN,
+            "--point",
+            "muller",
+            "--system",
+            "two",
+            book=book,
+        )
+        run(
+            "lab",
+            "result-add",
+            "S-200",
+            "perm",
+            "112",
+            "--instrument",
+            "PERM-1",
+            "--on",
+            WHEN,
+            book=book,
+        )
+        result = run("report", "pairs", "comp", "perm", book=book)
+        assert "1 paired" in result.output
+        assert "1 carrying only one of the two" in result.output
