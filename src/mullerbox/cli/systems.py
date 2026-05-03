@@ -19,9 +19,13 @@ import click
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
 from mullerbox.cli.parsing import read_date, read_member
+from mullerbox.gfn.fineness import fineness_of
 from mullerbox.report.layout import Column, Table, heading
+from mullerbox.report.system import system_report
+from mullerbox.store import sieve_repo
 from mullerbox.system.balance import RESIDUAL_TOLERANCE, Balance
 from mullerbox.system.cooler import cooling_water_for, reachable_temperature
+from mullerbox.system.dust import collector_take, fineness_after
 from mullerbox.system.state import MassBasis, SandSystem
 from mullerbox.units.bulk import Pounds
 from mullerbox.units.percent import Percent
@@ -157,4 +161,79 @@ def cooler(
     )
 
 
-__all__ = ["balance", "cooler", "systems"]
+@systems.command("report")
+@click.option("--on", "as_of", required=True, help="yyyy-mm-dd")
+@click.option("--mass", required=True, help="Believed system mass, pounds.")
+@click.option("--basis", default="measured", help="measured or nameplate.")
+@click.option("--inventoried", required=True, help="When the mass was set, yyyy-mm-dd.")
+@click.option("--batch", required=True, help="Muller batch size, pounds.")
+@click.option("--return-f", required=True, help="Return sand temperature, Fahrenheit.")
+@click.option("--dust-rate", required=True, help="Collector loss rate, percent.")
+@click.option("--name", default="the sand system", help="What to call it.")
+@pass_context
+@handle
+def report(
+    context: Context,
+    as_of: str,
+    mass: str,
+    basis: str,
+    inventoried: str,
+    batch: str,
+    return_f: str,
+    dust_rate: str,
+    name: str,
+) -> None:
+    """The system's own sheet, leading with how the mass figure was arrived at."""
+    built = SandSystem(
+        name=name,
+        mass=Pounds(mass),
+        basis=read_member(basis, MassBasis, "a mass basis"),
+        established_on=read_date(inventoried),
+        batch_size=Pounds(batch),
+        return_temperature=Temperature.fahrenheit(return_f),
+        dust_loss_rate=Percent(dust_rate),
+    )
+    for line in system_report(built, read_date(as_of)).render():
+        context.say(line)
+
+
+@systems.command("collector")
+@click.argument("sample_id")
+@click.option("--throughput", required=True, help="Sand handled, pounds.")
+@pass_context
+@handle
+def collector(context: Context, sample_id: str, throughput: str) -> None:
+    """What the dust collector takes from a throughput of this sand.
+
+    Takes a sample rather than a bare tonnage, because the collector is a screen
+    and not a percentage: the answer depends on how many fines the sand has, and
+    two systems running the same tonnage lose different amounts.
+    """
+    with context.book() as book:
+        analysis = sieve_repo.load_analysis(book, sample_id)
+    spread = fineness_of(analysis)
+    take = collector_take(spread, Pounds(throughput))
+    context.say(str(take))
+    context.say(f"which is {take.share_removed} of the throughput")
+    coarsest = take.coarsest_touched
+    if coarsest is None:
+        context.say("nothing on this sand is fine enough for the collector to take")
+        return
+    context.say(f"the coarsest screen it touched was {coarsest.label}")
+    if take.removed == take.throughput:
+        # Every grain was fine enough to be caught, so there is no sand left to
+        # take a fineness of. Real on a pure fines sample and worth saying
+        # plainly rather than raising out of the arithmetic.
+        context.say(
+            "the collector would take all of this sand, so there is no drift to "
+            "report; nothing of it survives the pass"
+        )
+        return
+    after = fineness_after(spread, take)
+    context.say(
+        f"the sand through the collector drifts from GFN {spread.value} to {after}, "
+        "which no daily reading shows"
+    )
+
+
+__all__ = ["balance", "collector", "cooler", "report", "systems"]
