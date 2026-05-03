@@ -46,6 +46,10 @@ class Grading(Enum):
     SPREAD = "spread"
 
     @property
+    def label(self) -> str:
+        return self.value
+
+    @property
     def is_uniform(self) -> bool:
         return self in {Grading.THREE_SCREEN, Grading.FOUR_SCREEN}
 

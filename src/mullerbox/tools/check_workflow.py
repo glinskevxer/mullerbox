@@ -95,5 +95,18 @@ def main() -> int:
     return 0
 
 
+__all__ = [
+    "REPO_ROOT",
+    "REQUIRED_PYTHONS",
+    "REQUIRED_STEPS",
+    "TOOLS_ROOT",
+    "WORKFLOW",
+    "gate_modules",
+    "main",
+    "problems",
+    "workflow_text",
+]
+
+
 if __name__ == "__main__":
     sys.exit(main())

@@ -32,6 +32,10 @@ class Align(Enum):
     LEFT = "left"
     RIGHT = "right"
 
+    @property
+    def label(self) -> str:
+        return self.value
+
     def pad(self, text: str, width: int) -> str:
         return text.rjust(width) if self is Align.RIGHT else text.ljust(width)
 

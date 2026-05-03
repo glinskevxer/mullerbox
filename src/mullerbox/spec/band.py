@@ -44,6 +44,10 @@ class Verdict(Enum):
     ABOVE = "above"
 
     @property
+    def label(self) -> str:
+        return self.value
+
+    @property
     def is_out(self) -> bool:
         return self is not Verdict.INSIDE
 

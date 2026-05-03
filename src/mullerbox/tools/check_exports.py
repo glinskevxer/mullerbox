@@ -123,5 +123,8 @@ def main() -> int:
     return 0
 
 
+__all__ = ["EXEMPT", "PACKAGE_ROOT", "main", "problems"]
+
+
 if __name__ == "__main__":
     sys.exit(main())

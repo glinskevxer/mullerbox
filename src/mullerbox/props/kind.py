@@ -45,6 +45,10 @@ class Direction(Enum):
     HIGHER_IS_WORSE = "higher is worse"
     LOWER_IS_WORSE = "lower is worse"
 
+    @property
+    def label(self) -> str:
+        return self.value
+
 
 class PropertyKind(Enum):
     """One measurable property of the sand."""

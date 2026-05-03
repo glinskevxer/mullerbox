@@ -160,5 +160,21 @@ def main() -> int:
     return 0
 
 
+__all__ = [
+    "CLI_ROOT",
+    "NOT_A_GROUP",
+    "PACKAGE_ROOT",
+    "PYPROJECT",
+    "REPO_ROOT",
+    "declared",
+    "entry_point_problems",
+    "main",
+    "pin_problems",
+    "problems",
+    "registration_problems",
+    "version_problems",
+]
+
+
 if __name__ == "__main__":
     sys.exit(main())

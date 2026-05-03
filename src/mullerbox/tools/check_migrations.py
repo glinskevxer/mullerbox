@@ -139,5 +139,14 @@ def main() -> int:
     return 0
 
 
+__all__ = [
+    "SHIPPED",
+    "applies_cleanly",
+    "digest",
+    "main",
+    "problems",
+]
+
+
 if __name__ == "__main__":
     sys.exit(main())

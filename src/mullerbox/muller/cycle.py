@@ -53,6 +53,10 @@ class Stage(Enum):
     MULLED = "mulled"
     DISCHARGED = "discharged"
 
+    @property
+    def label(self) -> str:
+        return self.value
+
 
 @dataclass(frozen=True)
 class Cycle:
