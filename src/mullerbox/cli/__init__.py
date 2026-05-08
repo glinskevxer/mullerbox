@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mullerbox.cli import bench_cmd as _bench
 from mullerbox.cli import catalogue as _catalogue
 from mullerbox.cli import cores as _cores
 from mullerbox.cli import costing as _costing
@@ -22,6 +23,7 @@ from mullerbox.cli.main import main
 
 # Importing the group modules is what registers their commands on the root.
 _REGISTERED = (
+    _bench,
     _catalogue,
     _cores,
     _costing,
