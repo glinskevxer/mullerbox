@@ -19,9 +19,11 @@ import click
 
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
-from mullerbox.cli.parsing import read_date
+from mullerbox.cli.parsing import read_date, read_decimal
 from mullerbox.gfn.distribution import grade
 from mullerbox.gfn.fineness import fineness_of
+from mullerbox.props.bias import Comparison
+from mullerbox.props.duplicate import check, limit_for
 from mullerbox.props.kind import parse_property
 from mullerbox.props.result import Result
 from mullerbox.report.layout import Column, Table
@@ -171,9 +173,73 @@ def series_check(context: Context, name: str) -> None:
         context.say(line)
 
 
+@lab.command("duplicate")
+@click.argument("property_name")
+@click.argument("first")
+@click.argument("second")
+@pass_context
+@handle
+def duplicate(context: Context, property_name: str, first: str, second: str) -> None:
+    """Check two results from one bench on one sample against each other.
+
+    Refuses to hand back a mean when the pair did not repeat. Keeping the one
+    nearer the target is the instinct and it is how a drifting bench stays
+    undetected, so there is no way through this command to do it.
+    """
+    kind = parse_property(property_name)
+    pair = check(kind, read_decimal(first, kind.label), read_decimal(second, kind.label))
+    context.say(str(pair))
+    if not pair.agrees:
+        pair.require_agreement()
+    context.say(f"the pair stands at {pair.mean}")
+
+
+@lab.command("cross-check")
+@click.argument("property_name")
+@click.argument("sample_id")
+@click.option("--first", "first_tag", required=True, help="One instrument's tag.")
+@click.option("--first-reading", required=True, help="What it read.")
+@click.option("--second", "second_tag", required=True, help="The other instrument.")
+@click.option("--second-reading", required=True, help="What it read.")
+@pass_context
+@handle
+def cross_check(
+    context: Context,
+    property_name: str,
+    sample_id: str,
+    first_tag: str,
+    first_reading: str,
+    second_tag: str,
+    second_reading: str,
+) -> None:
+    """Compare two benches on one split sample.
+
+    Duplicates catch a noisy bench. Only a second bench catches a wrong one,
+    because a wrong bench repeats beautifully.
+    """
+    kind = parse_property(property_name)
+    comparison = Comparison(
+        kind=kind,
+        sample_id=sample_id,
+        first_tag=first_tag,
+        first_reading=read_decimal(first_reading, kind.label),
+        second_tag=second_tag,
+        second_reading=read_decimal(second_reading, kind.label),
+    )
+    context.say(comparison.finding())
+    context.say("")
+    context.say(
+        f"bias {comparison.bias:+} against a cross check limit of "
+        f"{comparison.limit}, which is wider than the {limit_for(kind)} two "
+        "results from one bench should agree within"
+    )
+
+
 __all__ = [
     "add_result",
     "add_sample",
+    "cross_check",
+    "duplicate",
     "fineness",
     "lab",
     "series_check",

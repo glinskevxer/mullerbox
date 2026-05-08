@@ -279,3 +279,128 @@ class TestFineness:
         result = run("lab", "fineness", "S-100", book=book)
         assert result.exit_code == EXIT_RULE
         assert "no sieve analysis on sample" in result.output
+
+
+class TestDuplicate:
+    def test_a_pair_that_repeats_gives_a_mean(self, book: Path) -> None:
+        result = run("lab", "duplicate", "comp", "41.0", "41.5", book=book)
+        assert result.exit_code == 0
+        assert "agrees" in result.output
+        assert "the pair stands at 41.25" in result.output
+
+    def test_a_pair_that_does_not_gives_nothing(self, book: Path) -> None:
+        result = run("lab", "duplicate", "comp", "38.0", "45.0", book=book)
+        assert result.exit_code == EXIT_RULE
+        assert "neither one stands" in result.output
+        assert "the pair stands at" not in result.output
+
+    def test_it_says_to_run_the_test_again(self, book: Path) -> None:
+        result = run("lab", "duplicate", "comp", "38.0", "45.0", book=book)
+        assert "the test is run again" in result.output
+
+    def test_the_limit_differs_by_property(self, book: Path) -> None:
+        # A one point spread repeats on permeability and not on moisture.
+        assert run("lab", "duplicate", "perm", "110", "111", book=book).exit_code == 0
+        assert run("lab", "duplicate", "h2o", "3.0", "4.0", book=book).exit_code == (EXIT_RULE)
+
+    def test_a_bad_number_is_refused(self, book: Path) -> None:
+        result = run("lab", "duplicate", "comp", "wet", "41.5", book=book)
+        assert result.exit_code == EXIT_RULE
+        assert "is not a compactability" in result.output
+
+    def test_an_unknown_property_is_refused(self, book: Path) -> None:
+        assert run("lab", "duplicate", "sticky", "1", "2", book=book).exit_code == (EXIT_RULE)
+
+
+class TestCrossCheck:
+    def test_two_benches_that_agree(self, book: Path) -> None:
+        result = run(
+            "lab",
+            "cross-check",
+            "comp",
+            "S-100",
+            "--first",
+            "RAM-1",
+            "--first-reading",
+            "41.0",
+            "--second",
+            "RAM-2",
+            "--second-reading",
+            "41.5",
+            book=book,
+        )
+        assert result.exit_code == 0
+        assert "agree on compactability" in result.output
+
+    def test_two_that_do_not_name_the_high_bench(self, book: Path) -> None:
+        result = run(
+            "lab",
+            "cross-check",
+            "comp",
+            "S-100",
+            "--first",
+            "RAM-1",
+            "--first-reading",
+            "41.0",
+            "--second",
+            "RAM-2",
+            "--second-reading",
+            "48.0",
+            book=book,
+        )
+        assert "RAM-2 reads higher" in result.output
+
+    def test_it_refuses_to_say_which_is_wrong(self, book: Path) -> None:
+        result = run(
+            "lab",
+            "cross-check",
+            "comp",
+            "S-100",
+            "--first",
+            "RAM-1",
+            "--first-reading",
+            "41.0",
+            "--second",
+            "RAM-2",
+            "--second-reading",
+            "48.0",
+            book=book,
+        )
+        assert "cannot say which" in result.output
+
+    def test_the_limit_is_wider_than_for_one_bench(self, book: Path) -> None:
+        result = run(
+            "lab",
+            "cross-check",
+            "comp",
+            "S-100",
+            "--first",
+            "RAM-1",
+            "--first-reading",
+            "41.0",
+            "--second",
+            "RAM-2",
+            "--second-reading",
+            "41.5",
+            book=book,
+        )
+        assert "wider than the" in result.output
+
+    def test_the_same_bench_twice_is_refused(self, book: Path) -> None:
+        result = run(
+            "lab",
+            "cross-check",
+            "comp",
+            "S-100",
+            "--first",
+            "RAM-1",
+            "--first-reading",
+            "41.0",
+            "--second",
+            "RAM-1",
+            "--second-reading",
+            "43.0",
+            book=book,
+        )
+        assert result.exit_code == EXIT_RULE
+        assert "rather than a cross check" in result.output
