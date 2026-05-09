@@ -102,3 +102,56 @@ class TestClasses:
     def test_it_works_without_a_sheet(self, tmp_path: Path) -> None:
         target = initialised(tmp_path)
         assert run("spec", "classes", book=target).exit_code == 0
+
+
+class TestDiff:
+    @pytest.fixture
+    def revised(self, book: Path) -> Path:
+        run("spec", "load-default", "--on", "2025-06-02", "--name", "june", book=book)
+        return book
+
+    def test_two_identical_sheets_change_nothing(self, revised: Path) -> None:
+        result = run("spec", "diff", "starting point", "june", book=revised)
+        assert result.exit_code == 0
+        assert "changes nothing" in result.output
+
+    def test_a_sheet_that_is_not_there_is_refused(self, book: Path) -> None:
+        result = run("spec", "diff", "starting point", "nothing", book=book)
+        assert result.exit_code == EXIT_RULE
+
+    def test_the_summary_counts_material_changes(self, revised: Path) -> None:
+        result = run("spec", "diff", "starting point", "june", book=revised)
+        assert "changes nothing" in result.output
+
+
+class TestCheckRevision:
+    @pytest.fixture
+    def revised(self, book: Path) -> Path:
+        run("spec", "load-default", "--on", "2025-06-02", "--name", "june", book=book)
+        return book
+
+    def test_it_shows_the_bands_in_force_either_side(self, revised: Path) -> None:
+        result = run(
+            "spec", "check-revision", "starting point", "june", "heavy jobbing", book=revised
+        )
+        assert result.exit_code == 0
+        assert "was in force" in result.output
+        assert "now in force" in result.output
+
+    def test_identical_sheets_move_nothing(self, revised: Path) -> None:
+        result = run(
+            "spec", "check-revision", "starting point", "june", "heavy jobbing", book=revised
+        )
+        assert "0 of" in result.output
+        assert "bands in force for heavy jobbing work move" in result.output
+
+    def test_the_class_decides_which_bands_appear(self, revised: Path) -> None:
+        light = run(
+            "spec", "check-revision", "starting point", "june", "light jobbing", book=revised
+        )
+        thin = run("spec", "check-revision", "starting point", "june", "thin wall", book=revised)
+        assert light.output != thin.output
+
+    def test_an_unknown_class_is_refused(self, revised: Path) -> None:
+        result = run("spec", "check-revision", "starting point", "june", "prototype", book=revised)
+        assert result.exit_code == EXIT_RULE

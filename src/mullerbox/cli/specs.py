@@ -24,6 +24,7 @@ from mullerbox.props.kind import PropertyKind
 from mullerbox.report.layout import Column, Table
 from mullerbox.spec.band import Band
 from mullerbox.spec.pattern import PatternClass, parse_pattern_class
+from mullerbox.spec.revision import compare
 from mullerbox.spec.sheet import SpecSheet, resolve
 from mullerbox.store import spec_repo
 from mullerbox.units.percent import Percent
@@ -157,10 +158,77 @@ def classes(context: Context) -> None:
         context.say(line)
 
 
+@specs.command("diff")
+@click.argument("was")
+@click.argument("now")
+@pass_context
+@handle
+def diff(context: Context, was: str, now: str) -> None:
+    """Say what a revision changed, material changes first.
+
+    Material means a change that can put in band sand out of band on the day it
+    is published: a moved aim, a narrowed band, or a property that was not
+    controlled and now is. A widened band and a dropped property are real and
+    put nothing out, so they are listed below the line.
+    """
+    with context.book() as book:
+        before = spec_repo.load_sheet(book, was)
+        after = spec_repo.load_sheet(book, now)
+    revision = compare(before, after)
+    for line in revision.render():
+        context.say(line)
+    if revision.is_empty:
+        return
+    context.say("")
+    context.say(
+        f"{len(revision.material)} of {len(revision.changes)} changes are "
+        "material, meaning sand that was in band may not be"
+    )
+
+
+@specs.command("check-revision")
+@click.argument("was")
+@click.argument("now")
+@click.argument("pattern")
+@pass_context
+@handle
+def check_revision(context: Context, was: str, now: str, pattern: str) -> None:
+    """Show what a revision does to the bands in force for one class of work."""
+    cls = parse_pattern_class(pattern)
+    with context.book() as book:
+        before = spec_repo.load_sheet(book, was)
+        after = spec_repo.load_sheet(book, now)
+    old_bands = resolve(before, cls)
+    new_bands = resolve(after, cls)
+    table = Table(columns=(Column("property"), Column("was in force"), Column("now in force")))
+    touched = sorted(old_bands.covers | new_bands.covers, key=lambda k: k.name)
+    moved = 0
+    for kind in touched:
+        old = (
+            str(old_bands.band_for(kind)).removeprefix(f"{kind.label} ")
+            if old_bands.judges(kind)
+            else "not judged"
+        )
+        new = (
+            str(new_bands.band_for(kind)).removeprefix(f"{kind.label} ")
+            if new_bands.judges(kind)
+            else "not judged"
+        )
+        if old != new:
+            moved += 1
+        table.add(kind.label, old, new)
+    for line in table.render():
+        context.say(line)
+    context.say("")
+    context.say(f"{moved} of {len(touched)} bands in force for {cls.label} work move")
+
+
 __all__ = [
     "DEFAULT_BANDS",
     "DEFAULT_NAME",
+    "check_revision",
     "classes",
+    "diff",
     "list_sheets",
     "load_default",
     "show",
