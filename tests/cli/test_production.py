@@ -230,3 +230,54 @@ class TestTheScrapSheet:
         run("spec", "load-default", "--on", "2025-01-06", book=target)
         result = run("production", "record-heat", "H-3", "--on", WHEN, book=target)
         assert result.exit_code != 0
+
+
+class TestPareto:
+    HEAVY_SCRAP = "casting,disposition,defects\nC-1,scrapped,penetration\nC-3,scrapped,pinhole\n"
+
+    def test_it_ranks_by_weight(self, book: Path, tmp_path: Path) -> None:
+        path = tmp_path / "insp.csv"
+        path.write_text(self.HEAVY_SCRAP, encoding="utf-8")
+        result = run("production", "pareto", "--inspections", str(path), book=book)
+        assert result.exit_code == 0
+        assert "work on:" in result.output
+
+    def test_the_vital_few_are_marked(self, book: Path, tmp_path: Path) -> None:
+        path = tmp_path / "insp.csv"
+        path.write_text(self.HEAVY_SCRAP, encoding="utf-8")
+        result = run("production", "pareto", "--inspections", str(path), book=book)
+        assert "vital few" in result.output
+        assert "cumulative" in result.output
+
+    def test_an_empty_book_says_so(self, tmp_path: Path) -> None:
+        target = initialised(tmp_path)
+        run("spec", "load-default", "--on", "2025-01-06", book=target)
+        path = tmp_path / "insp.csv"
+        path.write_text(self.HEAVY_SCRAP, encoding="utf-8")
+        result = run("production", "pareto", "--inspections", str(path), book=target)
+        assert "no heats on the book to rank" in result.output
+
+    def test_no_defects_written_means_nothing_to_rank(self, book: Path, tmp_path: Path) -> None:
+        path = tmp_path / "insp.csv"
+        path.write_text("casting,disposition,defects\nC-1,scrapped,\n", encoding="utf-8")
+        result = run("production", "pareto", "--inspections", str(path), book=book)
+        assert "no scrap to rank" in result.output
+
+    def test_sand_only_narrows_it(self, book: Path, tmp_path: Path) -> None:
+        path = tmp_path / "insp.csv"
+        path.write_text(
+            "casting,disposition,defects\nC-1,scrapped,blow\nC-3,scrapped,shrinkage\n",
+            encoding="utf-8",
+        )
+        everything = run("production", "pareto", "--inspections", str(path), book=book)
+        sand = run("production", "pareto", "--inspections", str(path), "--sand-only", book=book)
+        assert "shrinkage" in everything.output
+        assert "shrinkage" not in sand.output
+
+    def test_narrowing_to_a_day(self, book: Path, tmp_path: Path) -> None:
+        path = tmp_path / "insp.csv"
+        path.write_text(self.HEAVY_SCRAP, encoding="utf-8")
+        result = run(
+            "production", "pareto", "--inspections", str(path), "--on", "2020-01-01", book=book
+        )
+        assert "no heats on the book to rank" in result.output

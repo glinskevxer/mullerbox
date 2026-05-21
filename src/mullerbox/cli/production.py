@@ -19,6 +19,7 @@ from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
 from mullerbox.cli.parsing import read_date, read_member
 from mullerbox.defect.kind import DefectKind
+from mullerbox.defect.pareto import pareto_of
 from mullerbox.defect.scrap import report_on
 from mullerbox.errors import BadInputError, NotFoundError
 from mullerbox.heat.heat import Casting, Disposition, Heat, Mold
@@ -165,4 +166,77 @@ def scrap(context: Context, heat_number: str, path: str | None, summary: bool) -
         context.say(line)
 
 
-__all__ = ["list_heats", "production", "record_heat", "scrap"]
+@production.command("pareto")
+@click.option(
+    "--inspections",
+    "path",
+    required=True,
+    type=click.Path(),
+    help="An inspection sheet covering the heats.",
+)
+@click.option("--on", "as_of", default=None, help="Narrow to one day, yyyy-mm-dd.")
+@click.option("--sand-only", is_flag=True, help="Only the charges that reached sand.")
+@pass_context
+@handle
+def pareto(context: Context, path: str, as_of: str | None, sand_only: bool) -> None:
+    """Rank the defects by the weight they scrapped, not by how often they happen.
+
+    Counting is what a shop does by instinct and it ranks wrong: thirty small
+    pinholed castings weigh less than two penetrated heavy ones. When the two
+    rankings disagree the command says so, because that disagreement means the
+    shop's impression of what it scraps is not what its scrap costs.
+    """
+    when = read_date(as_of) if as_of else None
+    load = load_inspections(read_sheet(path))
+    for problem in load.problems:
+        context.warn(str(problem))
+    defects = dict(load.defects_by_casting)
+    reports = []
+    with context.book() as book:
+        for number in heat_repo.list_heats(book, when):
+            heat = heat_repo.load_heat(book, number)
+            if not heat.molds:
+                continue
+            sheet = spec_repo.current_sheet(book, heat.poured_on)
+            gathered = reading_repo.gather(book, heat.poured_on)
+            specs = {cls: resolve(sheet, cls) for cls in heat.patterns}
+            reports.append(report_on(heat, defects, specs, gathered.readings))
+    if not reports:
+        context.say("no heats on the book to rank")
+        return
+    ranked = pareto_of(reports, sand_only=sand_only)
+    if not ranked.bands:
+        context.say("no scrap to rank")
+        return
+    table = Table(
+        columns=(
+            Column("defect"),
+            Column.number("weight"),
+            Column.number("castings"),
+            Column.number("share"),
+            Column.number("cumulative"),
+            Column("vital few"),
+        )
+    )
+    for band in ranked.bands:
+        table.add(
+            band.defect.label,
+            str(band.weight),
+            str(band.count),
+            f"{band.share:.1%}",
+            f"{band.cumulative:.1%}",
+            "yes" if band.is_vital else "",
+        )
+    for line in table.render():
+        context.say(line)
+    context.say("")
+    named = ", ".join(b.defect.label for b in ranked.vital_few)
+    context.say(f"work on: {named}")
+    if ranked.ranking_disagrees:
+        context.say(
+            f"counting would have put {ranked.by_count[0].defect.label} first "
+            "instead; the shop's impression is not what its scrap costs"
+        )
+
+
+__all__ = ["list_heats", "pareto", "production", "record_heat", "scrap"]
