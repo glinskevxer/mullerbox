@@ -21,6 +21,7 @@ from mullerbox.cli.main import main
 from mullerbox.cli.parsing import read_member
 from mullerbox.core.batch import CoreBatch
 from mullerbox.core.binder import Binder, BinderSystem
+from mullerbox.core.mix import cores_from, mix_for
 from mullerbox.core.testing import TensileResult, batch_verdict
 from mullerbox.errors import BadInputError
 from mullerbox.report.layout import Column, Table
@@ -194,6 +195,58 @@ def _moment(text: str) -> datetime:
         raise BadInputError(f"{text!r} is not a moment in yyyy-mm-ddThh:mm:ss form") from None
 
 
+@cores.command("size-mix")
+@click.argument("system_name")
+@click.argument("cores_wanted")
+@pass_context
+@handle
+def size_mix(context: Context, system_name: str, cores_wanted: str) -> None:
+    """Work out what to charge for a weight of cores.
+
+    Allows for spillage and nothing else. A bit extra in case is a bit of scrap
+    every mix, because core sand that is not blown inside bench life cannot go
+    back in the hopper and cannot go into the green sand system either.
+    """
+    with context.book() as book:
+        system = core_repo.load_system(book, system_name)
+    mix = mix_for(system, Pounds(cores_wanted))
+    table = Table(columns=(Column("charge"), Column.number("pounds")))
+    table.add("sand", str(mix.sand))
+    table.add("resin", str(mix.resin))
+    table.add("catalyst", str(mix.catalyst))
+    table.add("total", str(mix.total_charge))
+    for line in table.render():
+        context.say(line)
+    context.say("")
+    context.say(
+        f"{mix.spillage} of that is the spillage allowance; the rest makes "
+        f"{mix.cores_wanted} of cores"
+    )
+    context.say(
+        f"if none of it is blown, {mix.waste_if_unused} is scrapped, because core "
+        "sand does not go round again"
+    )
+    context.say(
+        f"resin is {system.resin} of the sand and catalyst is {system.catalyst_ratio} of the resin"
+    )
+
+
+@cores.command("yield")
+@click.argument("system_name")
+@click.argument("sand_available")
+@pass_context
+@handle
+def yield_from(context: Context, system_name: str, sand_available: str) -> None:
+    """How many cores a fixed mixer load will make, after spillage."""
+    with context.book() as book:
+        system = core_repo.load_system(book, system_name)
+    made = cores_from(system, Pounds(sand_available))
+    context.say(f"{Pounds(sand_available)} of sand makes {made} of cores")
+    if made.is_zero:
+        return
+    context.say(f"blown inside a {system.bench_life} bench life or scrapped")
+
+
 __all__ = [
     "add_system",
     "blow",
@@ -202,4 +255,6 @@ __all__ = [
     "judge",
     "list_systems",
     "mix",
+    "size_mix",
+    "yield_from",
 ]

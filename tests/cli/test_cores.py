@@ -157,3 +157,55 @@ class TestJudging:
         run("core", "break", "CB-1", "T-1", "200", "--at", at(900), book=book)
         result = run("core", "break", "CB-1", "T-1", "200", "--at", at(900), book=book)
         assert result.exit_code == EXIT_RULE
+
+
+class TestSizingAMix:
+    def test_it_charges_sand_resin_and_catalyst(self, book: Path) -> None:
+        result = run("core", "size-mix", "pep", "1000", book=book)
+        assert result.exit_code == 0
+        for line in ("sand", "resin", "catalyst", "total"):
+            assert line in result.output
+
+    def test_it_names_the_spillage_allowance(self, book: Path) -> None:
+        result = run("core", "size-mix", "pep", "1000", book=book)
+        assert "spillage allowance" in result.output
+        assert "40.00 lb" in result.output
+
+    def test_it_says_what_is_scrapped_if_none_is_blown(self, book: Path) -> None:
+        result = run("core", "size-mix", "pep", "1000", book=book)
+        assert "is scrapped" in result.output
+        assert "does not go round again" in result.output
+
+    def test_it_states_both_catalyst_conventions(self, book: Path) -> None:
+        result = run("core", "size-mix", "pep", "1000", book=book)
+        assert "of the sand and catalyst is" in result.output
+        assert "of the resin" in result.output
+
+    def test_a_mix_too_big_to_blow_is_refused(self, book: Path) -> None:
+        result = run("core", "size-mix", "pep", "5000", book=book)
+        assert result.exit_code == EXIT_RULE
+        assert "split the mix" in result.output
+
+    def test_a_mix_for_nothing_is_refused(self, book: Path) -> None:
+        result = run("core", "size-mix", "pep", "0", book=book)
+        assert result.exit_code == EXIT_RULE
+
+    def test_an_unknown_system_is_refused(self, book: Path) -> None:
+        assert run("core", "size-mix", "nothing", "1000", book=book).exit_code == (EXIT_RULE)
+
+
+class TestYield:
+    def test_it_undoes_the_spillage(self, book: Path) -> None:
+        result = run("core", "yield", "pep", "1040", book=book)
+        assert result.exit_code == 0
+        assert "1000.00 lb of cores" in result.output
+
+    def test_it_names_the_bench_life(self, book: Path) -> None:
+        result = run("core", "yield", "pep", "1040", book=book)
+        assert "5:00 bench life" in result.output
+
+    def test_no_sand_makes_no_cores(self, book: Path) -> None:
+        result = run("core", "yield", "pep", "0", book=book)
+        assert result.exit_code == 0
+        assert "0.00 lb of cores" in result.output
+        assert "bench life" not in result.output
