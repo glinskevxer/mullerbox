@@ -463,3 +463,71 @@ class TestPairs:
         result = run("report", "pairs", "comp", "perm", book=book)
         assert "1 paired" in result.output
         assert "1 carrying only one of the two" in result.output
+
+
+class TestDue:
+    def test_a_lapsed_calibration_leads_the_sheet(self, book: Path) -> None:
+        result = run("report", "due", "--on", "2027-01-01", book=book)
+        assert result.exit_code == 0
+        assert "readings are not counting" in result.output
+
+    def test_an_instrument_with_no_certificate_at_all_is_listed(self, book: Path) -> None:
+        # PERM-1 is on the book and has never been calibrated.
+        result = run("report", "due", "--on", WHEN, book=book)
+        assert "PERM-1" in result.output
+        assert "never" in result.output
+
+    def test_a_sound_book_says_nothing_is_due(self, tmp_path: Path) -> None:
+        sound = initialised(tmp_path)
+        run("catalogue", "instrument-add", "RAM-1", "compactability", book=sound)
+        run(
+            "catalogue",
+            "calibrate",
+            "RAM-1",
+            "C-1",
+            "--on",
+            "2025-01-06",
+            "--days",
+            "700",
+            book=sound,
+        )
+        result = run("report", "due", "--on", WHEN, book=sound)
+        assert "nothing is due" in result.output
+
+    def test_it_says_when_there_is_no_programme(self, book: Path) -> None:
+        result = run("report", "due", "--on", WHEN, book=book)
+        assert "no testing programme is set up" in result.output
+
+    def test_an_overdue_test_appears_once_there_is_one(self, book: Path) -> None:
+        run(
+            "programme",
+            "set",
+            "loi",
+            "monthly",
+            "--on",
+            "2025-01-06",
+            "--because",
+            "slow to move",
+            book=book,
+        )
+        result = run("report", "due", "--on", WHEN, book=book)
+        assert "loss on ignition" in result.output
+        assert "nothing yet" in result.output
+
+    def test_sieve_wear_is_left_out_unless_asked_for(self, book: Path) -> None:
+        result = run("report", "due", "--on", WHEN, book=book)
+        assert "pass --series to include it" in result.output
+
+    def test_asking_for_it_lists_the_unmeasured_screens(self, book: Path) -> None:
+        run("catalogue", "load-afs", book=book)
+        result = run("report", "due", "--on", WHEN, "--series", "AFS US 11 screen", book=book)
+        assert "never been measured" in result.output
+        assert "readings may be wrong" in result.output
+
+    def test_an_unknown_series_is_refused(self, book: Path) -> None:
+        result = run("report", "due", "--on", WHEN, "--series", "nothing", book=book)
+        assert result.exit_code == EXIT_RULE
+
+    def test_it_counts_what_is_costing_something(self, book: Path) -> None:
+        result = run("report", "due", "--on", "2027-01-01", book=book)
+        assert "costing something now" in result.output

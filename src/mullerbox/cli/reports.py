@@ -25,12 +25,22 @@ from mullerbox.analysis.summary import summarise, worst_first
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
 from mullerbox.cli.parsing import read_date
+from mullerbox.errors import NotFoundError
 from mullerbox.props.kind import PropertyKind, parse_property
+from mullerbox.report.due import due_sheet
 from mullerbox.report.layout import Column, Table
 from mullerbox.report.shift import shift_report
 from mullerbox.spec.pattern import parse_pattern_class
 from mullerbox.spec.sheet import resolve
-from mullerbox.store import instrument_repo, reading_repo, result_repo, spec_repo
+from mullerbox.store import (
+    instrument_repo,
+    programme_repo,
+    reading_repo,
+    result_repo,
+    series_repo,
+    spec_repo,
+    wear_repo,
+)
 from mullerbox.units.reading import scalar_of
 
 
@@ -263,10 +273,51 @@ def pairs_command(context: Context, first_name: str, second_name: str) -> None:
     context.say(f"{len(both)} paired, {only_one} carrying only one of the two")
 
 
+@reports.command("due")
+@click.option("--on", "as_of", required=True, help="yyyy-mm-dd")
+@click.option("--series", "series_name", default=None, help="Include sieve wear.")
+@pass_context
+@handle
+def due(context: Context, as_of: str, series_name: str | None) -> None:
+    """Everything the shop owes, ranked by what being late costs.
+
+    Calibrations, scheduled tests and sieve wear fall due independently and each
+    has its own sheet, which is how the one nobody opened ends up being the one
+    that mattered. This is all three, ranked by consequence rather than by how
+    many days over each one is.
+    """
+    when = read_date(as_of)
+    series = None
+    checks = None
+    with context.book() as book:
+        instruments = instrument_repo.load_all(book)
+        try:
+            schedule = programme_repo.load_schedule(book)
+        except NotFoundError:
+            schedule = None
+        last = programme_repo.last_tested(book)
+        if series_name is not None:
+            series = series_repo.load_series(book, series_name)
+            checks = wear_repo.latest_checks(book, series, when)
+    sheet = due_sheet(when, instruments, schedule, last, series, checks)
+    for line in sheet.render():
+        context.say(line)
+    if schedule is None:
+        context.say("")
+        context.say(
+            "no testing programme is set up, so no tests are listed; "
+            "run programme set to put properties on it"
+        )
+    if series_name is None:
+        context.say("")
+        context.say("sieve wear was not checked; pass --series to include it")
+
+
 __all__ = [
     "analyse",
     "chart",
     "correlate_command",
+    "due",
     "exceptions",
     "pairs_command",
     "reports",
