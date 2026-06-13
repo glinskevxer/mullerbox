@@ -281,3 +281,85 @@ class TestPareto:
             "production", "pareto", "--inspections", str(path), "--on", "2020-01-01", book=book
         )
         assert "no heats on the book to rank" in result.output
+
+
+class TestYields:
+    def test_all_three_are_named(self, book: Path) -> None:
+        result = run("production", "yields", "H-1", "--sand-handled", "100000", book=book)
+        assert result.exit_code == 0
+        assert "what melting is judged on" in result.output
+        assert "what the plant is paid on" in result.output
+        assert "what the sand is judged on" in result.output
+
+    def test_the_scrap_gap_is_spelled_out(self, book: Path) -> None:
+        result = run("production", "yields", "H-1", "--sand-handled", "100000", book=book)
+        assert "the gap between the first two" in result.output
+
+    def test_a_heat_that_is_not_there(self, book: Path) -> None:
+        result = run("production", "yields", "H-9", "--sand-handled", "100000", book=book)
+        assert result.exit_code == EXIT_RULE
+
+    def test_it_names_what_was_poured(self, book: Path) -> None:
+        result = run("production", "yields", "H-1", "--sand-handled", "100000", book=book)
+        assert "poured" in result.output
+
+
+class TestMonth:
+    def test_it_rolls_the_heats_in_the_span(self, book: Path) -> None:
+        result = run(
+            "production",
+            "month",
+            "--from",
+            WHEN,
+            "--to",
+            WHEN,
+            "--sand-handled",
+            "100000",
+            book=book,
+        )
+        assert result.exit_code == 0
+        assert "1 heats" in result.output
+
+    def test_a_quiet_span_says_so(self, book: Path) -> None:
+        result = run(
+            "production",
+            "month",
+            "--from",
+            "2020-01-01",
+            "--to",
+            "2020-12-31",
+            "--sand-handled",
+            "100000",
+            book=book,
+        )
+        assert "no heats were poured between" in result.output
+
+    def test_a_backwards_span_is_refused(self, book: Path) -> None:
+        result = run(
+            "production",
+            "month",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2025-01-01",
+            "--sand-handled",
+            "100000",
+            book=book,
+        )
+        assert result.exit_code == EXIT_RULE
+        assert "backwards" in result.output
+
+    def test_it_names_all_three_ratios_too(self, book: Path) -> None:
+        result = run(
+            "production",
+            "month",
+            "--from",
+            WHEN,
+            "--to",
+            WHEN,
+            "--sand-handled",
+            "100000",
+            book=book,
+        )
+        assert "casting yield" in result.output
+        assert "sand ratio" in result.output

@@ -23,6 +23,7 @@ from mullerbox.defect.pareto import pareto_of
 from mullerbox.defect.scrap import report_on
 from mullerbox.errors import BadInputError, NotFoundError
 from mullerbox.heat.heat import Casting, Disposition, Heat, Mold
+from mullerbox.heat.yields import Yields, yields_of
 from mullerbox.ingest.production import load_inspections
 from mullerbox.ingest.reader import read_sheet
 from mullerbox.report.layout import Column, Table
@@ -239,4 +240,73 @@ def pareto(context: Context, path: str, as_of: str | None, sand_only: bool) -> N
         )
 
 
-__all__ = ["list_heats", "pareto", "production", "record_heat", "scrap"]
+@production.command("yields")
+@click.argument("heat_number")
+@click.option("--sand-handled", required=True, help="Sand the system moved, pounds.")
+@pass_context
+@handle
+def yields(context: Context, heat_number: str, sand_handled: str) -> None:
+    """The three ratios a foundry calls yield, each said out loud.
+
+    Casting yield, good casting yield and sand ratio are three different numbers
+    and quoting the wrong one is how a plant congratulates itself on a month
+    that scrapped a fifth of its castings. All three, always, each labelled.
+    """
+    with context.book() as book:
+        heat = heat_repo.load_heat(book, heat_number)
+    found = yields_of(heat, Pounds(sand_handled))
+    context.say(f"heat {heat_number} poured {found.poured}")
+    for line in found.summary():
+        context.say(f"  {line}")
+
+
+@production.command("month")
+@click.option("--from", "start", required=True, help="yyyy-mm-dd")
+@click.option("--to", "end", required=True, help="yyyy-mm-dd")
+@click.option("--sand-handled", required=True, help="Sand the system moved, pounds.")
+@pass_context
+@handle
+def month(context: Context, start: str, end: str, sand_handled: str) -> None:
+    """Roll the heats over a span into one set of yields."""
+    first = read_date(start)
+    last = read_date(end)
+    if last < first:
+        raise BadInputError(f"the span runs from {first} to {last}, which is backwards")
+    poured = Pounds.zero()
+    made = Pounds.zero()
+    shipped = Pounds.zero()
+    counted = 0
+    with context.book() as book:
+        for number in heat_repo.list_heats(book):
+            heat = heat_repo.load_heat(book, number)
+            if not (first <= heat.poured_on <= last):
+                continue
+            counted += 1
+            poured = poured + heat.metal
+            for casting in heat.castings:
+                made = made + casting.weight
+                if casting.disposition is Disposition.SHIPPED:
+                    shipped = shipped + casting.weight
+    if not counted:
+        context.say(f"no heats were poured between {first} and {last}")
+        return
+    rolled = Yields(
+        poured=poured,
+        casting_weight=made,
+        shipped=shipped,
+        sand_handled=Pounds(sand_handled),
+    )
+    context.say(f"{counted} heats, {poured} poured")
+    for line in rolled.summary():
+        context.say(f"  {line}")
+
+
+__all__ = [
+    "list_heats",
+    "month",
+    "pareto",
+    "production",
+    "record_heat",
+    "scrap",
+    "yields",
+]
