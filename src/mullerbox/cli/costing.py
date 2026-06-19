@@ -16,10 +16,11 @@ from __future__ import annotations
 import click
 
 from mullerbox.addition.material import Addition, Material
+from mullerbox.charge.budget import Budget, variance_of
 from mullerbox.charge.cost import cost_of
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
-from mullerbox.cli.parsing import read_date, read_member
+from mullerbox.cli.parsing import read_date, read_decimal, read_member
 from mullerbox.errors import BadInputError, RuleError
 from mullerbox.heat.heat import Disposition
 from mullerbox.report.layout import Column, Table, heading
@@ -160,4 +161,55 @@ def _shipped_on(book: object, when: object) -> Pounds:
     return running
 
 
-__all__ = ["costing", "prices", "set_price", "shift"]
+@costing.command("variance")
+@click.argument("material_name")
+@click.option("--on", "as_of", required=True, help="yyyy-mm-dd")
+@click.option("--budget-lb-per-ton", required=True, help="Budgeted usage.")
+@click.option("--budget-price", required=True, help="Budgeted price per ton.")
+@click.option("--used", required=True, help="What was actually charged, pounds.")
+@click.option("--good-iron", required=True, help="Good iron shipped, pounds.")
+@pass_context
+@handle
+def variance(
+    context: Context,
+    material_name: str,
+    as_of: str,
+    budget_lb_per_ton: str,
+    budget_price: str,
+    used: str,
+    good_iron: str,
+) -> None:
+    """Split a material's overspend into rate and usage.
+
+    Reported as one number the two halves cancel, and a month where purchasing
+    saved five percent while the muller overdosed by five percent reads as on
+    budget. The split is the report, not a footnote under it.
+    """
+    material = read_member(material_name, Material, "a material")
+    when = read_date(as_of)
+    shipped = Pounds(good_iron)
+    charged = [Addition(material=material, mass=Pounds(used), reason="charged on the shift")]
+    with context.book() as book:
+        listed = price_repo.price_list_on(book, when)
+    costed = cost_of(charged, listed, shipped)
+    budget = Budget(
+        material=material,
+        pounds_per_ton=read_decimal(budget_lb_per_ton, "budgeted usage"),
+        price=PricePerTon(budget_price),
+    )
+    found = variance_of(budget, costed, shipped)
+    table = Table(columns=(Column("term"), Column.number("value")))
+    table.add("budgeted usage", str(budget.expected_usage(shipped)))
+    table.add("actually used", str(Pounds(used)))
+    table.add("budgeted cost", str(found.budgeted))
+    table.add("actual cost", str(found.actual))
+    table.add("rate variance", f"{found.rate:+}")
+    table.add("usage variance", f"{found.usage:+}")
+    table.add("total variance", f"{found.total:+}")
+    for line in table.render():
+        context.say(line)
+    context.say("")
+    context.say(found.finding())
+
+
+__all__ = ["costing", "prices", "set_price", "shift", "variance"]

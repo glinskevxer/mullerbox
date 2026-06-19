@@ -163,3 +163,47 @@ class TestTheShiftSheet:
         with_heat(book)
         result = run("cost", "shift", "--on", WHEN, book=book)
         assert "total $0.00" in result.output
+
+
+class TestVariance:
+    ARGS = [
+        "--on",
+        WHEN,
+        "--budget-lb-per-ton",
+        "20",
+        "--budget-price",
+        "142.00",
+        "--good-iron",
+        "200000",
+    ]
+
+    def test_on_budget_reads_zero_both_ways(self, book: Path) -> None:
+        result = run("cost", "variance", "bentonite", *self.ARGS, "--used", "2000", book=book)
+        assert result.exit_code == 0
+        assert "rate variance" in result.output
+        assert "usage variance" in result.output
+
+    def test_using_more_shows_as_usage(self, book: Path) -> None:
+        result = run("cost", "variance", "bentonite", *self.ARGS, "--used", "3000", book=book)
+        assert "usage" in result.output
+        assert "total variance" in result.output
+
+    def test_a_cheaper_price_shows_as_rate(self, book: Path) -> None:
+        run("cost", "set-price", "bentonite", "90.00", "--from", WHEN, book=book)
+        result = run("cost", "variance", "bentonite", *self.ARGS, "--used", "2000", book=book)
+        assert "-" in result.output
+
+    def test_a_cancelling_pair_is_called_out(self, book: Path) -> None:
+        run("cost", "set-price", "bentonite", "90.00", "--from", WHEN, book=book)
+        result = run("cost", "variance", "bentonite", *self.ARGS, "--used", "3000", book=book)
+        assert "would read as on budget" in result.output
+
+    def test_no_good_iron_is_refused(self, book: Path) -> None:
+        args = [a if a != "200000" else "0" for a in self.ARGS]
+        result = run("cost", "variance", "bentonite", *args, "--used", "2000", book=book)
+        assert result.exit_code == EXIT_RULE
+        assert "nothing to budget against" in result.output
+
+    def test_an_unknown_material_is_refused(self, book: Path) -> None:
+        result = run("cost", "variance", "gravel", *self.ARGS, "--used", "2000", book=book)
+        assert result.exit_code == EXIT_RULE
