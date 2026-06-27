@@ -21,10 +21,12 @@ from mullerbox.analysis.control import MIN_POINTS, chart_of
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
 from mullerbox.cli.parsing import read_date, read_member
+from mullerbox.programme.coverage import coverage_of
 from mullerbox.programme.schedule import PINNED, Frequency, adjusted
 from mullerbox.props.kind import PropertyKind, parse_property
 from mullerbox.report.layout import Column, Table
-from mullerbox.store import programme_repo, result_repo
+from mullerbox.spec.pattern import PatternClass, parse_pattern_class
+from mullerbox.store import programme_repo, result_repo, spec_repo
 from mullerbox.units.reading import scalar_of
 
 
@@ -145,4 +147,43 @@ def history(context: Context, property_name: str) -> None:
         context.say(line)
 
 
-__all__ = ["due", "history", "programme", "review", "set_interval"]
+@programme.command("coverage")
+@click.option(
+    "--class",
+    "class_names",
+    multiple=True,
+    help="A pattern class the shop runs. Repeat it. All of them when left out.",
+)
+@click.option("--on", "as_of", required=True, help="Which spec sheet, yyyy-mm-dd.")
+@pass_context
+@handle
+def coverage(context: Context, class_names: tuple[str, ...], as_of: str) -> None:
+    """Check the programme against the classes the shop actually runs.
+
+    Two gaps and they are different problems: a property judged against a band
+    and never scheduled, which makes the shift report show a dash and look tidy,
+    and a property scheduled that no class is judged by, which is bench time in
+    a lab where bench time is the constraint.
+    """
+    classes = (
+        [parse_pattern_class(name) for name in class_names] if class_names else list(PatternClass)
+    )
+    with context.book() as book:
+        schedule = programme_repo.load_schedule(book)
+        sheet = spec_repo.current_sheet(book, read_date(as_of))
+    found = coverage_of(schedule, sheet, classes)
+    table = Table(columns=(Column("property"), Column("controlled"), Column("scheduled")))
+    for kind in sorted(found.controlled | found.scheduled, key=lambda k: k.name):
+        table.add(
+            kind.label,
+            "yes" if kind in found.controlled else "no",
+            "yes" if kind in found.scheduled else "no",
+        )
+    for line in table.render():
+        context.say(line)
+    context.say("")
+    for finding in found.findings():
+        context.say(finding)
+
+
+__all__ = ["coverage", "due", "history", "programme", "review", "set_interval"]

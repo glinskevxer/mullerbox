@@ -230,3 +230,43 @@ class TestHistory:
     def test_an_unknown_property_is_refused(self, book: Path) -> None:
         result = run("programme", "history", "stickiness", book=book)
         assert result.exit_code == EXIT_RULE
+
+
+class TestCoverage:
+    @pytest.fixture
+    def specced(self, book: Path) -> Path:
+        run("spec", "load-default", "--on", "2025-01-06", book=book)
+        return book
+
+    def test_a_thin_programme_shows_the_gap(self, specced: Path) -> None:
+        result = run("programme", "coverage", "--on", WHEN, book=specced)
+        assert result.exit_code == 0
+        assert "never scheduled to be tested" in result.output
+
+    def test_it_says_the_report_looks_tidy(self, specced: Path) -> None:
+        result = run("programme", "coverage", "--on", WHEN, book=specced)
+        assert "looks tidy" in result.output
+
+    def test_narrowing_to_one_class_narrows_the_gap(self, specced: Path) -> None:
+        everything = run("programme", "coverage", "--on", WHEN, book=specced)
+        light = run("programme", "coverage", "--on", WHEN, "--class", "light jobbing", book=specced)
+        assert everything.output != light.output
+
+    def test_the_table_shows_both_columns(self, specced: Path) -> None:
+        result = run("programme", "coverage", "--on", WHEN, book=specced)
+        assert "controlled" in result.output
+        assert "scheduled" in result.output
+
+    def test_an_unknown_class_is_refused(self, specced: Path) -> None:
+        result = run("programme", "coverage", "--on", WHEN, "--class", "prototype", book=specced)
+        assert result.exit_code == EXIT_RULE
+
+    def test_a_date_before_any_sheet_is_refused(self, specced: Path) -> None:
+        result = run("programme", "coverage", "--on", "2024-01-01", book=specced)
+        assert result.exit_code == EXIT_RULE
+
+    def test_an_empty_programme_is_refused(self, tmp_path: Path) -> None:
+        target = initialised(tmp_path)
+        run("spec", "load-default", "--on", "2025-01-06", book=target)
+        result = run("programme", "coverage", "--on", WHEN, book=target)
+        assert result.exit_code == EXIT_RULE
