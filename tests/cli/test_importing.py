@@ -192,3 +192,127 @@ class TestCycles:
         text = CYCLES + "B-4,2026-03-24,60,120,,,\n"
         result = run("import", "cycles", str(write(tmp_path, "c.csv", text)), "--strict", book=book)
         assert result.exit_code == EXIT_RULE
+
+
+WEAR = "screen,measured,checked\n30,600,2026-07-01\n40,425,2026-07-01\n"
+FULL_WEAR = "screen,measured,checked\n" + "".join(
+    f"{label},{micro},2026-07-01\n"
+    for label, micro in (
+        ("6", 3350),
+        ("12", 1700),
+        ("20", 850),
+        ("30", 600),
+        ("40", 425),
+        ("50", 300),
+        ("70", 212),
+        ("100", 150),
+        ("140", 106),
+        ("200", 75),
+        ("270", 53),
+    )
+)
+
+
+class TestWear:
+    def test_a_clean_sheet_loads(self, book: Path, tmp_path: Path) -> None:
+        result = run(
+            "import",
+            "wear",
+            str(write(tmp_path, "w.csv", WEAR)),
+            "--series",
+            "AFS US 11 screen",
+            book=book,
+        )
+        assert result.exit_code == 0, result.output
+        assert "loaded 2 checks, 0 problems" in result.output
+
+    def test_the_checks_are_on_the_book(self, book: Path, tmp_path: Path) -> None:
+        run(
+            "import",
+            "wear",
+            str(write(tmp_path, "w.csv", WEAR)),
+            "--series",
+            "AFS US 11 screen",
+            book=book,
+        )
+        shown = run("screens", "wear-history", "AFS US 11 screen", "30", book=book)
+        assert "600" in shown.output
+
+    def test_a_frame_from_the_wrong_drawer_is_named(self, book: Path, tmp_path: Path) -> None:
+        text = "screen,measured,checked\n33,600,2026-07-01\n"
+        result = run(
+            "import",
+            "wear",
+            str(write(tmp_path, "w.csv", text)),
+            "--series",
+            "AFS US 11 screen",
+            book=book,
+        )
+        assert "wrong drawer" in result.output
+        assert "loaded 0 checks, 1 problems" in result.output
+
+    def test_strict_refuses_the_whole_file(self, book: Path, tmp_path: Path) -> None:
+        text = "screen,measured,checked\n33,600,2026-07-01\n"
+        result = run(
+            "import",
+            "wear",
+            str(write(tmp_path, "w.csv", text)),
+            "--series",
+            "AFS US 11 screen",
+            "--strict",
+            book=book,
+        )
+        assert result.exit_code == EXIT_RULE
+
+    def test_it_says_what_the_sheet_did_not_cover(self, book: Path, tmp_path: Path) -> None:
+        result = run(
+            "import",
+            "wear",
+            str(write(tmp_path, "w.csv", WEAR)),
+            "--series",
+            "AFS US 11 screen",
+            book=book,
+        )
+        assert "did not cover" in result.output
+
+    def test_a_full_sheet_leaves_nothing_uncovered(self, book: Path, tmp_path: Path) -> None:
+        result = run(
+            "import",
+            "wear",
+            str(write(tmp_path, "w.csv", FULL_WEAR)),
+            "--series",
+            "AFS US 11 screen",
+            book=book,
+        )
+        assert "did not cover" not in result.output
+        assert "loaded 11 checks" in result.output
+
+    def test_a_full_sheet_makes_the_stack_fit(self, book: Path, tmp_path: Path) -> None:
+        run(
+            "import",
+            "wear",
+            str(write(tmp_path, "w.csv", FULL_WEAR)),
+            "--series",
+            "AFS US 11 screen",
+            book=book,
+        )
+        shown = run("screens", "stack", "AFS US 11 screen", "--on", "2026-07-02", book=book)
+        assert "fit to use" in shown.output
+
+    def test_a_worn_screen_is_warned_about(self, book: Path, tmp_path: Path) -> None:
+        text = "screen,measured,checked\n30,680,2026-07-01\n"
+        result = run(
+            "import",
+            "wear",
+            str(write(tmp_path, "w.csv", text)),
+            "--series",
+            "AFS US 11 screen",
+            book=book,
+        )
+        assert "past the wear limit" in result.output
+
+    def test_an_unknown_series_is_refused(self, book: Path, tmp_path: Path) -> None:
+        result = run(
+            "import", "wear", str(write(tmp_path, "w.csv", WEAR)), "--series", "nope", book=book
+        )
+        assert result.exit_code != 0

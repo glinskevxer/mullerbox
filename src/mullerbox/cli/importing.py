@@ -24,12 +24,14 @@ from mullerbox.ingest.cycles import load_cycles
 from mullerbox.ingest.production import load_inspections, load_pours
 from mullerbox.ingest.reader import Problem, read_sheet
 from mullerbox.ingest.sieve import load_sieve
+from mullerbox.ingest.wear import load_wear, unmeasured
 from mullerbox.store import (
     cycle_repo,
     heat_repo,
     result_repo,
     series_repo,
     sieve_repo,
+    wear_repo,
 )
 
 
@@ -160,11 +162,42 @@ def import_cycles(context: Context, path: str, strict: bool) -> None:
         context.say(f"{short} of them mulled short of the schedule")
 
 
+@importing.command("wear")
+@click.argument("path", type=click.Path())
+@click.option("--series", "series_name", required=True, help="Which screen series.")
+@click.option("--strict", is_flag=True, help="Refuse the file if any row is bad.")
+@pass_context
+@handle
+def import_wear(context: Context, path: str, series_name: str, strict: bool) -> None:
+    """Load a screen calibration sheet against a series.
+
+    The sheet carries a mesh number and no series, so the series is given here
+    and every row is checked against it. A frame out of the wrong drawer is a
+    named refusal rather than a nominal aperture quietly applied to the wrong
+    screen, which would move every grain fineness number the stack goes on to
+    produce.
+    """
+    with context.book() as book:
+        series = series_repo.load_series(book, series_name)
+        load = load_wear(read_sheet(path), series)
+        _report(context, load.problems, strict)
+        for check in load.checks:
+            wear_repo.record_check(book, series_name, check)
+    context.say(f"loaded {len(load.checks)} checks, {len(load.problems)} problems")
+    for check in load.worn:
+        context.warn(check.verdict())
+    missing = unmeasured(load, series)
+    if missing:
+        names = ", ".join(str(mesh) for mesh in missing)
+        context.say(f"this sheet did not cover {names}")
+
+
 __all__ = [
     "import_bench",
     "import_cycles",
     "import_inspections",
     "import_pours",
     "import_sieve",
+    "import_wear",
     "importing",
 ]
