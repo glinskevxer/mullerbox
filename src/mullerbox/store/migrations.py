@@ -375,6 +375,38 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    Migration(
+        version=12,
+        name="system inventory counts",
+        statements=(
+            """
+            CREATE TABLE inventory_count (
+                system_name    TEXT NOT NULL,
+                counted_on     TEXT NOT NULL,
+                moulds         INTEGER NOT NULL,
+                sand_per_mould TEXT NOT NULL,
+                PRIMARY KEY (system_name, counted_on)
+            )
+            """,
+            """
+            CREATE TABLE inventory_vessel (
+                system_name TEXT NOT NULL,
+                counted_on  TEXT NOT NULL,
+                name        TEXT NOT NULL,
+                capacity_cf TEXT NOT NULL,
+                filled      TEXT NOT NULL,
+                density     TEXT,
+                PRIMARY KEY (system_name, counted_on, name),
+                FOREIGN KEY (system_name, counted_on)
+                    REFERENCES inventory_count (system_name, counted_on)
+                    ON DELETE CASCADE
+            )
+            """,
+            """
+            CREATE INDEX inventory_by_date ON inventory_count (counted_on)
+            """,
+        ),
+    ),
 )
 
 

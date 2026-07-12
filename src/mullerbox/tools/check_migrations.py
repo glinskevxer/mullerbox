@@ -40,6 +40,7 @@ SHIPPED: dict[int, str] = {
     9: "7240e4a655401a1e",
     10: "ac15b2d55cb48e84",
     11: "7ecdae6427647e4e",
+    12: "be58ae144a9790ae",
 }
 
 
