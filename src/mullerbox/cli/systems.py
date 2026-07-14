@@ -18,14 +18,16 @@ import click
 
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
-from mullerbox.cli.parsing import read_date, read_member
+from mullerbox.cli.parsing import read_date, read_decimal, read_member
+from mullerbox.errors import BadInputError
 from mullerbox.gfn.fineness import fineness_of
 from mullerbox.report.layout import Column, Table, heading
 from mullerbox.report.system import system_report
-from mullerbox.store import sieve_repo
+from mullerbox.store import inventory_repo, sieve_repo
 from mullerbox.system.balance import RESIDUAL_TOLERANCE, Balance
 from mullerbox.system.cooler import cooling_water_for, reachable_temperature
 from mullerbox.system.dust import collector_take, fineness_after
+from mullerbox.system.inventory import Count, Vessel, apply_count, reconcile
 from mullerbox.system.state import MassBasis, SandSystem
 from mullerbox.units.bulk import Pounds
 from mullerbox.units.percent import Percent
@@ -236,4 +238,192 @@ def collector(context: Context, sample_id: str, throughput: str) -> None:
     )
 
 
-__all__ = ["balance", "collector", "cooler", "report", "systems"]
+def _vessels(entries: tuple[str, ...]) -> tuple[Vessel, ...]:
+    """Parse the repeated --vessel option.
+
+    The shape is name:capacity:fill:density, and the density may be left off
+    entirely, which is how the operator says nobody measured it. An empty
+    trailing field means the same thing, because that is what a spreadsheet
+    export produces and refusing it would only teach people to type a zero.
+    """
+    built: list[Vessel] = []
+    for entry in entries:
+        parts = entry.split(":")
+        if len(parts) not in (3, 4):
+            raise BadInputError(
+                f"{entry!r} is not name:capacity:fill or name:capacity:fill:density"
+            )
+        name, capacity, fill = parts[0], parts[1], parts[2]
+        density = parts[3].strip() if len(parts) == 4 else ""
+        built.append(
+            Vessel(
+                name=name.strip(),
+                capacity_cubic_feet=read_decimal(capacity, "a vessel capacity"),
+                filled_fraction=read_decimal(fill, "a fill fraction"),
+                density_pounds_per_cubic_foot=(
+                    read_decimal(density, "a bulk density") if density else None
+                ),
+            )
+        )
+    return tuple(built)
+
+
+@systems.command("inventory")
+@click.option("--name", required=True, help="Which sand system.")
+@click.option("--on", "counted_on", required=True, help="yyyy-mm-dd")
+@click.option(
+    "--vessel",
+    "vessels",
+    multiple=True,
+    required=True,
+    help="name:capacity:fill:density, repeated. Leave the density off if nobody measured it.",
+)
+@click.option("--moulds", default=0, type=int, help="Moulds standing on the floor.")
+@click.option("--sand-per-mould", default="0", help="Sand one mould takes, pounds.")
+@click.option("--save/--no-save", default=True, help="Keep the count on the book.")
+@pass_context
+@handle
+def inventory(
+    context: Context,
+    name: str,
+    counted_on: str,
+    vessels: tuple[str, ...],
+    moulds: int,
+    sand_per_mould: str,
+    save: bool,
+) -> None:
+    """Take a system inventory and say what it found."""
+    count = Count(
+        system_name=name,
+        counted_on=read_date(counted_on),
+        vessels=_vessels(vessels),
+        moulds_standing=moulds,
+        sand_per_mould=Pounds(sand_per_mould),
+    )
+    table = Table(
+        columns=(
+            Column("vessel"),
+            Column.number("cu ft"),
+            Column.number("standing"),
+            Column.number("lb/cu ft"),
+            Column.number("pounds"),
+        )
+    )
+    for vessel in count.vessels:
+        density = vessel.density_pounds_per_cubic_foot
+        table.add(
+            vessel.name,
+            str(vessel.capacity_cubic_feet),
+            str(vessel.standing_cubic_feet),
+            "" if density is None else str(density),
+            "not counted" if density is None else str(vessel.mass),
+        )
+    for line in table.render():
+        context.say(line)
+    context.say("")
+    context.say(f"in vessels {count.in_vessels}, on the floor {count.on_the_floor}")
+    context.say(f"total {count.total}")
+    if not count.on_the_floor.is_zero:
+        context.say(f"{count.floor_share:.1%} of that is the floor estimate, which nobody weighed")
+    if not count.is_complete:
+        missed = ", ".join(v.name for v in count.uncounted_vessels)
+        context.warn(f"this count did not reach {missed}, so it is partial")
+    if save:
+        with context.book() as book:
+            inventory_repo.save_count(book, count)
+        context.say(f"kept the count of {name} on {count.counted_on}")
+
+
+@systems.command("reconcile")
+@click.option("--name", required=True, help="Which sand system.")
+@click.option("--on", "counted_on", required=True, help="Which count, yyyy-mm-dd.")
+@click.option("--mass", required=True, help="The figure the system was carrying, pounds.")
+@click.option("--basis", default="nameplate", help="measured or nameplate.")
+@click.option("--inventoried", required=True, help="When that figure was set, yyyy-mm-dd.")
+@click.option("--batch", required=True, help="Muller batch size, pounds.")
+@click.option("--return-f", required=True, help="Return sand temperature, Fahrenheit.")
+@click.option("--dust-rate", required=True, help="Collector loss rate, percent.")
+@click.option("--adopt", is_flag=True, help="Write the count in as the system mass.")
+@pass_context
+@handle
+def reconcile_count(
+    context: Context,
+    name: str,
+    counted_on: str,
+    mass: str,
+    basis: str,
+    inventoried: str,
+    batch: str,
+    return_f: str,
+    dust_rate: str,
+    adopt: bool,
+) -> None:
+    """Set a saved count against the figure the system was carrying.
+
+    ``--adopt`` refuses a partial count. A count that did not reach every vessel
+    comes back wearing the measured basis if it is adopted, and everything
+    downstream stops asking whether the mass is a guess.
+    """
+    system = SandSystem(
+        name=name,
+        mass=Pounds(mass),
+        basis=read_member(basis, MassBasis, "a mass basis"),
+        established_on=read_date(inventoried),
+        batch_size=Pounds(batch),
+        return_temperature=Temperature.fahrenheit(return_f),
+        dust_loss_rate=Percent(dust_rate),
+    )
+    with context.book() as book:
+        count = inventory_repo.load_count(book, name, read_date(counted_on))
+    context.say(reconcile(system, count).verdict())
+    if not adopt:
+        return
+    after = apply_count(system, count)
+    context.say(
+        f"adopt {after.mass} measured on {after.established_on}; pass "
+        f"--mass {after.mass.value} --basis measured --inventoried "
+        f"{after.established_on} from here on"
+    )
+
+
+@systems.command("counts")
+@click.option("--name", required=True, help="Which sand system.")
+@pass_context
+@handle
+def counts(context: Context, name: str) -> None:
+    """Every inventory taken of a system."""
+    with context.book() as book:
+        dates = inventory_repo.count_dates(book, name)
+        rows = [inventory_repo.load_count(book, name, when) for when in dates]
+    if not rows:
+        context.say(f"{name} has never been inventoried")
+        return
+    table = Table(
+        columns=(
+            Column("counted"),
+            Column.number("total"),
+            Column.number("floor share"),
+            Column("state"),
+        )
+    )
+    for count in rows:
+        table.add(
+            str(count.counted_on),
+            str(count.total),
+            f"{count.floor_share:.1%}",
+            "complete" if count.is_complete else "partial",
+        )
+    for line in table.render():
+        context.say(line)
+
+
+__all__ = [
+    "balance",
+    "collector",
+    "cooler",
+    "counts",
+    "inventory",
+    "reconcile_count",
+    "report",
+    "systems",
+]
