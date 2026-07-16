@@ -1,27 +1,39 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from mullerbox.defect.attribution import (
     Excursion,
     attribute,
+    band_in_force,
     charged_to_sand,
     excursions_for,
 )
 from mullerbox.defect.kind import Culprit, DefectKind
 from mullerbox.errors import BadInputError
+from mullerbox.gfn.distribution import grade
+from mullerbox.gfn.fineness import fineness_of
 from mullerbox.props.kind import PropertyKind
 from mullerbox.spec.band import Band, Verdict
 from mullerbox.spec.pattern import PatternClass
+from mullerbox.spec.sheet import SpecSheet, resolve
 from mullerbox.units.percent import Percent
 from mullerbox.units.pressure import Psi
 from mullerbox.units.scales import Permeability
 from tests.defect.helpers import readings, spec_for
+from tests.gfn.helpers import analysis_of
+from tests.gfn.helpers import sheet as bench_sheet
 
 HEAVY = PatternClass.HEAVY_JOBBING
 LIGHT = PatternClass.LIGHT_JOBBING
 CORED = PatternClass.CORED_LIGHT
 THIN = PatternClass.THIN_WALL
+
+
+def distribution_of(**held: str):  # type: ignore[no-untyped-def]
+    return grade(fineness_of(analysis_of(bench_sheet(**held), "50.00")))
 
 
 class TestTheClassIsCheckedFirst:
@@ -153,3 +165,87 @@ class TestGuards:
 
 def test_a_band_is_still_a_band() -> None:
     assert isinstance(spec_for(HEAVY).band_for(PropertyKind.MOISTURE), Band)
+
+
+class TestThePermeabilityBandIsShiftedBeforeItJudges:
+    def test_the_sheet_band_is_used_when_no_analysis_is_given(self) -> None:
+        got = band_in_force(spec_for(HEAVY), PropertyKind.PERMEABILITY)
+        assert got == spec_for(HEAVY).band_for(PropertyKind.PERMEABILITY)
+
+    def test_an_analysis_moves_it(self) -> None:
+        coarse = distribution_of(**{"40": "50.00"})
+        shifted = band_in_force(spec_for(HEAVY), PropertyKind.PERMEABILITY, coarse)
+        assert shifted.floor > spec_for(HEAVY).band_for(PropertyKind.PERMEABILITY).floor
+
+    def test_every_other_property_is_left_alone(self) -> None:
+        coarse = distribution_of(**{"40": "50.00"})
+        for kind in (PropertyKind.MOISTURE, PropertyKind.GREEN_COMPRESSION):
+            assert band_in_force(spec_for(HEAVY), kind, coarse) == spec_for(HEAVY).band_for(kind)
+
+    def test_a_coarse_sand_reading_in_the_sheet_band_is_now_an_excursion(self) -> None:
+        # 110 AFS is comfortably inside the published band, and on a 30 GFN sand
+        # it is nowhere near what that sand should vent at.
+        coarse = distribution_of(**{"40": "50.00"})
+        sand = readings(PERMEABILITY=Permeability(110))
+        assert excursions_for(DefectKind.BLOW, spec_for(HEAVY), sand) == ()
+        with_analysis = excursions_for(DefectKind.BLOW, spec_for(HEAVY), sand, coarse)
+        assert PropertyKind.PERMEABILITY in tuple(e.kind for e in with_analysis)
+
+    def test_and_the_defect_follows_it(self) -> None:
+        coarse = distribution_of(**{"40": "50.00"})
+        sand = readings(PERMEABILITY=Permeability(110))
+        assert not attribute(DefectKind.BLOW, spec_for(HEAVY), sand).is_sand
+        assert attribute(DefectKind.BLOW, spec_for(HEAVY), sand, coarse).is_sand
+
+    def test_a_fine_sand_reading_below_the_sheet_band_is_no_longer_one(self) -> None:
+        # The other direction, which is the one that costs a shop money: a fine
+        # sand judged against a band written for coarser sand fails every shift.
+        fine = distribution_of(**{"140": "50.00"})
+        sand = readings(PERMEABILITY=Permeability(40))
+        assert excursions_for(DefectKind.BLOW, spec_for(HEAVY), sand) != ()
+        assert excursions_for(DefectKind.BLOW, spec_for(HEAVY), sand, fine) == ()
+
+    def test_the_excursion_carries_the_shifted_band_not_the_anchor(self) -> None:
+        coarse = distribution_of(**{"40": "50.00"})
+        sand = readings(PERMEABILITY=Permeability(110))
+        found = excursions_for(DefectKind.BLOW, spec_for(HEAVY), sand, coarse)
+        perm = next(e for e in found if e.kind is PropertyKind.PERMEABILITY)
+        assert perm.band != spec_for(HEAVY).band_for(PropertyKind.PERMEABILITY)
+        assert perm.verdict is Verdict.BELOW
+
+    def test_charged_to_sand_passes_the_analysis_through(self) -> None:
+        coarse = distribution_of(**{"40": "50.00"})
+        sand = readings(PERMEABILITY=Permeability(110))
+        assert charged_to_sand([DefectKind.BLOW], spec_for(HEAVY), sand) == []
+        assert charged_to_sand([DefectKind.BLOW], spec_for(HEAVY), sand, coarse) != []
+
+    def test_it_wants_a_property_kind(self) -> None:
+        bad: Any = "permeability"
+        with pytest.raises(BadInputError, match="property kind is expected"):
+            band_in_force(spec_for(HEAVY), bad)
+
+    def test_it_wants_a_resolved_spec(self) -> None:
+        bad: Any = "spec"
+        with pytest.raises(BadInputError, match="resolved spec is expected"):
+            band_in_force(bad, PropertyKind.PERMEABILITY)
+
+    def test_it_wants_a_real_distribution(self) -> None:
+        bad: Any = "coarse"
+        with pytest.raises(BadInputError, match="graded distribution is expected"):
+            band_in_force(spec_for(HEAVY), PropertyKind.PERMEABILITY, bad)
+
+    def test_a_one_ended_anchor_is_left_where_it_is(self) -> None:
+        one_ended = resolve(
+            SpecSheet(
+                name="floor only",
+                bands={
+                    PropertyKind.PERMEABILITY: Band.at_least(
+                        PropertyKind.PERMEABILITY, Permeability(60)
+                    )
+                },
+            ),
+            HEAVY,
+        )
+        coarse = distribution_of(**{"40": "50.00"})
+        got = band_in_force(one_ended, PropertyKind.PERMEABILITY, coarse)
+        assert got == one_ended.band_for(PropertyKind.PERMEABILITY)

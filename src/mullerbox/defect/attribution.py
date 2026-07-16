@@ -33,9 +33,11 @@ from dataclasses import dataclass
 
 from mullerbox.defect.kind import Culprit, DefectKind
 from mullerbox.errors import BadInputError
+from mullerbox.gfn.distribution import Distribution
 from mullerbox.props.kind import PropertyKind, Reading
 from mullerbox.spec.band import Band, Verdict
 from mullerbox.spec.pattern import PatternClass
+from mullerbox.spec.permeability import expected_permeability
 from mullerbox.spec.sheet import ResolvedSpec
 
 
@@ -78,16 +80,56 @@ class Attribution:
         return f"{self.defect.label} on {self.pattern.label}: {self.culprit.label}, {self.reason}"
 
 
+def band_in_force(
+    resolved: ResolvedSpec,
+    kind: PropertyKind,
+    distribution: Distribution | None = None,
+) -> Band:
+    """The band a reading is actually judged against.
+
+    For every property but one this is the band off the sheet. Permeability is
+    the exception, and `mullerbox.spec.permeability` says why: the published
+    figure is an anchor for the reference sand, and the sand in the system is
+    not the reference sand. Given a sieve analysis, the anchor is shifted to
+    what this sand should read, and the shifted band is what judges.
+
+    Without a distribution the anchor is used unshifted. That is not a silent
+    default so much as the honest one: nothing here can invent a sieve analysis
+    the lab did not run, and the caller that has one should pass it.
+    """
+    if not isinstance(resolved, ResolvedSpec):
+        raise BadInputError("a resolved spec is expected")
+    if not isinstance(kind, PropertyKind):
+        raise BadInputError("a property kind is expected")
+    band = resolved.band_for(kind)
+    if kind is not PropertyKind.PERMEABILITY or distribution is None:
+        return band
+    if not isinstance(distribution, Distribution):
+        raise BadInputError("a graded distribution is expected")
+    if not band.is_two_ended:
+        # A one ended permeability limit is a floor or a ceiling and not an
+        # anchor, so there is nothing to shift and nothing to correct.
+        return band
+    return expected_permeability(resolved, distribution).band
+
+
 def excursions_for(
     defect: DefectKind,
     resolved: ResolvedSpec,
     readings: Mapping[PropertyKind, Reading],
+    distribution: Distribution | None = None,
 ) -> tuple[Excursion, ...]:
-    """Every candidate property of this defect that was out of its band.
+    """Every candidate property of this defect that was out of the band in force.
 
     A candidate the resolved spec does not judge is skipped rather than treated
     as passing. There is no band, so there is no excursion, and saying so is not
     the same as saying the property was fine.
+
+    The band in force is not always the band on the sheet. Pass the sieve
+    analysis and permeability is judged against the shifted band, which is the
+    whole point of publishing an anchor; without it a coarse sand reads high
+    against a band written for finer sand and every blow gets charged to
+    permeability that was never out.
     """
     if not isinstance(defect, DefectKind):
         raise BadInputError("a defect kind is expected")
@@ -100,7 +142,7 @@ def excursions_for(
         reading = readings.get(kind)
         if reading is None:
             continue
-        band = resolved.band_for(kind)
+        band = band_in_force(resolved, kind, distribution)
         verdict = band.verdict(reading)
         if verdict is not Verdict.INSIDE:
             found.append(Excursion(kind=kind, reading=reading, verdict=verdict, band=band))
@@ -111,6 +153,7 @@ def attribute(
     defect: DefectKind,
     resolved: ResolvedSpec,
     readings: Mapping[PropertyKind, Reading],
+    distribution: Distribution | None = None,
 ) -> Attribution:
     """Charge one defect, given the spec in force and the sand at molding time."""
     if not isinstance(defect, DefectKind):
@@ -131,7 +174,7 @@ def attribute(
             excursions=(),
             reason=why,
         )
-    found = excursions_for(defect, resolved, readings)
+    found = excursions_for(defect, resolved, readings, distribution)
     if not found:
         return Attribution(
             defect=defect,
@@ -154,9 +197,18 @@ def charged_to_sand(
     defects: list[DefectKind],
     resolved: ResolvedSpec,
     readings: Mapping[PropertyKind, Reading],
+    distribution: Distribution | None = None,
 ) -> list[Attribution]:
     """Every defect in a list that lands on the sand."""
-    return [a for a in (attribute(d, resolved, readings) for d in defects) if a.is_sand]
+    attributed = (attribute(d, resolved, readings, distribution) for d in defects)
+    return [a for a in attributed if a.is_sand]
 
 
-__all__ = ["Attribution", "Excursion", "attribute", "charged_to_sand", "excursions_for"]
+__all__ = [
+    "Attribution",
+    "Excursion",
+    "attribute",
+    "band_in_force",
+    "charged_to_sand",
+    "excursions_for",
+]
