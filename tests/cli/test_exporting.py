@@ -150,3 +150,22 @@ class TestOtherExports:
         result = run("export", "heats", str(tmp_path / "nowhere" / "x.csv"), book=book)
         assert result.exit_code == EXIT_RULE
         assert "there is no directory at" in result.output
+
+
+class TestTheScrapExportNamesItsBand:
+    def test_the_column_is_there(self, book: Path, tmp_path: Path) -> None:
+        target = tmp_path / "scrap.csv"
+        result = run("export", "scrap", str(target), "--heat", "H-1", book=book)
+        assert result.exit_code == 0, result.output
+        assert "perm band" in target.read_text(encoding="utf-8")
+
+    def test_without_a_sample_it_says_anchor(self, book: Path, tmp_path: Path) -> None:
+        target = tmp_path / "scrap.csv"
+        run("export", "scrap", str(target), "--heat", "H-1", book=book)
+        body = target.read_text(encoding="utf-8").splitlines()
+        assert all(line.endswith("anchor") for line in body[1:])
+
+    def test_a_sample_with_no_analysis_is_refused(self, book: Path, tmp_path: Path) -> None:
+        target = tmp_path / "scrap.csv"
+        result = run("export", "scrap", str(target), "--heat", "H-1", "--sample", "S-9", book=book)
+        assert result.exit_code != 0

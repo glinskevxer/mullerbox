@@ -15,6 +15,7 @@ from __future__ import annotations
 import click
 
 from mullerbox.cli.context import Context, handle, pass_context
+from mullerbox.cli.judging import distribution_for, sample_option
 from mullerbox.cli.main import main
 from mullerbox.cli.parsing import read_date
 from mullerbox.defect.kind import Culprit
@@ -98,18 +99,26 @@ def export_heats(context: Context, path: str) -> None:
 @exporting.command("scrap")
 @click.argument("path", type=click.Path())
 @click.option("--heat", "heat_number", required=True, help="Which heat.")
+@sample_option
 @pass_context
 @handle
-def export_scrap(context: Context, path: str, heat_number: str) -> None:
-    """Write a heat's scrap charges. A report shape; nothing reads it back."""
+def export_scrap(context: Context, path: str, heat_number: str, sample_id: str | None) -> None:
+    """Write a heat's scrap charges. A report shape; nothing reads it back.
+
+    The sheet carries a column saying which permeability band judged it. An
+    export that did not would be read months later with no way to tell whether
+    the anchor or the shifted band produced the charges in it.
+    """
     with context.book() as book:
         heat = heat_repo.load_heat(book, heat_number)
         sheet = spec_repo.current_sheet(book, heat.poured_on)
         gathered = reading_repo.gather(book, heat.poured_on)
+        distribution = distribution_for(book, sample_id)
     if not heat.molds:
         raise NotFoundError("molds on heat", heat_number)
     specs = {cls: resolve(sheet, cls) for cls in heat.patterns}
-    report = report_on(heat, {}, specs, gathered.readings)
+    report = report_on(heat, {}, specs, gathered.readings, distribution)
+    judged = "shifted" if report.judged_on_analysis else "anchor"
     rows = [
         [
             report.heat_number,
@@ -119,12 +128,22 @@ def export_scrap(context: Context, path: str, heat_number: str) -> None:
             str(charge.weight.value),
             charge.culprit.label,
             ";".join(k.label for k in charge.sand_properties),
+            judged,
         ]
         for charge in report.charges
     ]
     written = write_sheet(
         path,
-        ["heat", "casting", "mold", "class", "weight", "charged to", "properties"],
+        [
+            "heat",
+            "casting",
+            "mold",
+            "class",
+            "weight",
+            "charged to",
+            "properties",
+            "perm band",
+        ],
         rows,
     )
     sand = report.weight_charged_to(Culprit.SAND)

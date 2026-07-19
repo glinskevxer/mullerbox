@@ -16,14 +16,13 @@ from __future__ import annotations
 import click
 
 from mullerbox.cli.context import Context, handle, pass_context
+from mullerbox.cli.judging import band_note, distribution_for, sample_option
 from mullerbox.cli.main import main
 from mullerbox.cli.parsing import read_date, read_member
 from mullerbox.defect.kind import DefectKind
 from mullerbox.defect.pareto import pareto_of
 from mullerbox.defect.scrap import report_on
 from mullerbox.errors import BadInputError, NotFoundError
-from mullerbox.gfn.distribution import Distribution, grade
-from mullerbox.gfn.fineness import fineness_of
 from mullerbox.heat.heat import Casting, Disposition, Heat, Mold
 from mullerbox.heat.yields import Yields, yields_of
 from mullerbox.ingest.production import load_inspections
@@ -32,7 +31,7 @@ from mullerbox.report.layout import Column, Table
 from mullerbox.report.scrap import scrap_sheet, totals_line
 from mullerbox.spec.pattern import PatternClass
 from mullerbox.spec.sheet import resolve
-from mullerbox.store import heat_repo, reading_repo, sieve_repo, spec_repo
+from mullerbox.store import heat_repo, reading_repo, spec_repo
 from mullerbox.units.bulk import Pounds
 
 
@@ -143,12 +142,7 @@ def list_heats(context: Context, as_of: str | None) -> None:
     type=click.Path(),
     help="An inspection sheet naming the defects on each casting.",
 )
-@click.option(
-    "--sample",
-    "sample_id",
-    default=None,
-    help="A sieve analysis to judge permeability against.",
-)
+@sample_option
 @click.option("--summary", is_flag=True, help="One line rather than the full sheet.")
 @pass_context
 @handle
@@ -168,13 +162,11 @@ def scrap(
         for problem in load.problems:
             context.warn(str(problem))
         defects = dict(load.defects_by_casting)
-    distribution: Distribution | None = None
     with context.book() as book:
         heat = heat_repo.load_heat(book, heat_number)
         sheet = spec_repo.current_sheet(book, heat.poured_on)
         gathered = reading_repo.gather(book, heat.poured_on)
-        if sample_id is not None:
-            distribution = grade(fineness_of(sieve_repo.load_analysis(book, sample_id)))
+        distribution = distribution_for(book, sample_id)
     if not heat.molds:
         raise NotFoundError("molds on heat", heat_number)
     specs = {cls: resolve(sheet, cls) for cls in heat.patterns}
@@ -184,9 +176,10 @@ def scrap(
         return
     for line in scrap_sheet(report).render():
         context.say(line)
-    if distribution is not None:
+    note = band_note(distribution)
+    if note is not None:
         context.say("")
-        context.say(f"permeability judged against a {distribution} sand")
+        context.say(note)
     caveat = report.caveat
     if caveat is not None:
         context.warn(caveat)
@@ -202,9 +195,12 @@ def scrap(
 )
 @click.option("--on", "as_of", default=None, help="Narrow to one day, yyyy-mm-dd.")
 @click.option("--sand-only", is_flag=True, help="Only the charges that reached sand.")
+@sample_option
 @pass_context
 @handle
-def pareto(context: Context, path: str, as_of: str | None, sand_only: bool) -> None:
+def pareto(
+    context: Context, path: str, as_of: str | None, sand_only: bool, sample_id: str | None
+) -> None:
     """Rank the defects by the weight they scrapped, not by how often they happen.
 
     Counting is what a shop does by instinct and it ranks wrong: thirty small
@@ -219,6 +215,7 @@ def pareto(context: Context, path: str, as_of: str | None, sand_only: bool) -> N
     defects = dict(load.defects_by_casting)
     reports = []
     with context.book() as book:
+        distribution = distribution_for(book, sample_id)
         for number in heat_repo.list_heats(book, when):
             heat = heat_repo.load_heat(book, number)
             if not heat.molds:
@@ -226,7 +223,7 @@ def pareto(context: Context, path: str, as_of: str | None, sand_only: bool) -> N
             sheet = spec_repo.current_sheet(book, heat.poured_on)
             gathered = reading_repo.gather(book, heat.poured_on)
             specs = {cls: resolve(sheet, cls) for cls in heat.patterns}
-            reports.append(report_on(heat, defects, specs, gathered.readings))
+            reports.append(report_on(heat, defects, specs, gathered.readings, distribution))
     if not reports:
         context.say("no heats on the book to rank")
         return

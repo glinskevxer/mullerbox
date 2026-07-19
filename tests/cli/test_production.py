@@ -445,3 +445,39 @@ class TestScrapAgainstASieveAnalysis:
         assert result.exit_code == 0, result.output
         assert "published anchor" not in result.output
         assert result.output.strip().count("\n") == 0
+
+    def test_the_pareto_takes_the_same_option(self, book: Path, tmp_path: Path) -> None:
+        with_sieve(book, tmp_path)
+        result = run(
+            "production",
+            "pareto",
+            "--inspections",
+            str(sheet_at(tmp_path, "insp.csv", INSPECTIONS)),
+            "--sample",
+            "S-1",
+            book=book,
+        )
+        assert result.exit_code == 0, result.output
+        assert "blow" in result.output
+
+    def test_the_pareto_still_works_without_it(self, book: Path, tmp_path: Path) -> None:
+        result = run(
+            "production",
+            "pareto",
+            "--inspections",
+            str(sheet_at(tmp_path, "insp.csv", INSPECTIONS)),
+            book=book,
+        )
+        assert result.exit_code == 0, result.output
+
+    def test_the_pareto_refuses_a_sample_with_no_analysis(self, book: Path, tmp_path: Path) -> None:
+        result = run(
+            "production",
+            "pareto",
+            "--inspections",
+            str(sheet_at(tmp_path, "insp.csv", INSPECTIONS)),
+            "--sample",
+            "S-1",
+            book=book,
+        )
+        assert result.exit_code != 0
