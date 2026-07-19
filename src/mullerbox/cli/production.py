@@ -22,6 +22,8 @@ from mullerbox.defect.kind import DefectKind
 from mullerbox.defect.pareto import pareto_of
 from mullerbox.defect.scrap import report_on
 from mullerbox.errors import BadInputError, NotFoundError
+from mullerbox.gfn.distribution import Distribution, grade
+from mullerbox.gfn.fineness import fineness_of
 from mullerbox.heat.heat import Casting, Disposition, Heat, Mold
 from mullerbox.heat.yields import Yields, yields_of
 from mullerbox.ingest.production import load_inspections
@@ -30,7 +32,7 @@ from mullerbox.report.layout import Column, Table
 from mullerbox.report.scrap import scrap_sheet, totals_line
 from mullerbox.spec.pattern import PatternClass
 from mullerbox.spec.sheet import resolve
-from mullerbox.store import heat_repo, reading_repo, spec_repo
+from mullerbox.store import heat_repo, reading_repo, sieve_repo, spec_repo
 from mullerbox.units.bulk import Pounds
 
 
@@ -141,30 +143,53 @@ def list_heats(context: Context, as_of: str | None) -> None:
     type=click.Path(),
     help="An inspection sheet naming the defects on each casting.",
 )
+@click.option(
+    "--sample",
+    "sample_id",
+    default=None,
+    help="A sieve analysis to judge permeability against.",
+)
 @click.option("--summary", is_flag=True, help="One line rather than the full sheet.")
 @pass_context
 @handle
-def scrap(context: Context, heat_number: str, path: str | None, summary: bool) -> None:
-    """Charge a heat's scrap, resolving the spec per mold class."""
+def scrap(
+    context: Context, heat_number: str, path: str | None, sample_id: str | None, summary: bool
+) -> None:
+    """Charge a heat's scrap, resolving the spec per mold class.
+
+    Give ``--sample`` and permeability is judged against the band this sand
+    should hold rather than against the published anchor. Without it the charge
+    still lands, and the sheet says which band it landed against, because a
+    blow charged to permeability on a coarse sand is usually the anchor talking.
+    """
     defects: dict[str, tuple[DefectKind, ...]] = {}
     if path is not None:
         load = load_inspections(read_sheet(path))
         for problem in load.problems:
             context.warn(str(problem))
         defects = dict(load.defects_by_casting)
+    distribution: Distribution | None = None
     with context.book() as book:
         heat = heat_repo.load_heat(book, heat_number)
         sheet = spec_repo.current_sheet(book, heat.poured_on)
         gathered = reading_repo.gather(book, heat.poured_on)
+        if sample_id is not None:
+            distribution = grade(fineness_of(sieve_repo.load_analysis(book, sample_id)))
     if not heat.molds:
         raise NotFoundError("molds on heat", heat_number)
     specs = {cls: resolve(sheet, cls) for cls in heat.patterns}
-    report = report_on(heat, defects, specs, gathered.readings)
+    report = report_on(heat, defects, specs, gathered.readings, distribution)
     if summary:
         context.say(totals_line(report))
         return
     for line in scrap_sheet(report).render():
         context.say(line)
+    if distribution is not None:
+        context.say("")
+        context.say(f"permeability judged against a {distribution} sand")
+    caveat = report.caveat
+    if caveat is not None:
+        context.warn(caveat)
 
 
 @production.command("pareto")

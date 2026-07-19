@@ -18,6 +18,13 @@ sand problem hidden inside the pattern column.
 **Pending castings are counted separately and never as good.** A casting nobody
 has judged is not scrap and is not a good casting, and folding it into either
 makes the report improve when inspection falls behind.
+
+The sieve analysis is optional here and it changes the answer. Without it the
+permeability reading is judged against the published anchor, and on a sand that
+is not the reference sand that anchor charges blows to the sand that the sand
+never caused, or clears ones it did. Pass the analysis that was current when the
+heat was poured and the roll up says so; leave it off and the report says that
+too, rather than pretending the anchor was the band in force.
 """
 
 from __future__ import annotations
@@ -29,6 +36,7 @@ from decimal import Decimal
 from mullerbox.defect.attribution import Attribution, attribute
 from mullerbox.defect.kind import Culprit, DefectKind
 from mullerbox.errors import BadInputError, RuleError
+from mullerbox.gfn.distribution import Distribution
 from mullerbox.heat.heat import Casting, Heat, Mold
 from mullerbox.props.kind import PropertyKind, Reading
 from mullerbox.spec.pattern import PatternClass
@@ -70,6 +78,22 @@ class ScrapReport:
     poured: Pounds
     charges: tuple[Charge, ...]
     pending: Pounds
+    judged_on_analysis: bool = False
+
+    @property
+    def caveat(self) -> str | None:
+        """What to print under the sand share, or nothing if it needs no caveat.
+
+        Only worth saying when there is a sand share to qualify. A heat with
+        nothing charged to sand does not become more honest by explaining which
+        permeability band it was not charged against.
+        """
+        if self.judged_on_analysis or self.weight_charged_to(Culprit.SAND).is_zero:
+            return None
+        return (
+            "no sieve analysis was given, so permeability was judged against the "
+            "published anchor rather than the band this sand should hold"
+        )
 
     def weight_charged_to(self, culprit: Culprit) -> Pounds:
         """The scrapped weight landing on one culprit."""
@@ -121,8 +145,9 @@ def _charge_for(
     defects: tuple[DefectKind, ...],
     resolved: ResolvedSpec,
     readings: Mapping[PropertyKind, Reading],
+    distribution: Distribution | None,
 ) -> Charge:
-    attributions = tuple(attribute(d, resolved, readings) for d in defects)
+    attributions = tuple(attribute(d, resolved, readings, distribution) for d in defects)
     if any(a.is_sand for a in attributions):
         culprit = Culprit.SAND
     elif attributions:
@@ -143,6 +168,7 @@ def report_on(
     defects: Mapping[str, tuple[DefectKind, ...]],
     specs: Mapping[PatternClass, ResolvedSpec],
     readings: Mapping[PropertyKind, Reading],
+    distribution: Distribution | None = None,
 ) -> ScrapReport:
     """Roll one heat's scrap up, resolving each mold against its own class.
 
@@ -174,6 +200,7 @@ def report_on(
                     defects.get(casting.casting_id, ()),
                     resolved,
                     readings,
+                    distribution,
                 )
             )
     return ScrapReport(
@@ -181,6 +208,7 @@ def report_on(
         poured=heat.metal,
         charges=tuple(charges),
         pending=pending,
+        judged_on_analysis=distribution is not None,
     )
 
 

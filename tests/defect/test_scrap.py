@@ -5,8 +5,10 @@ from decimal import Decimal
 import pytest
 
 from mullerbox.defect.kind import Culprit, DefectKind
-from mullerbox.defect.scrap import report_on
+from mullerbox.defect.scrap import ScrapReport, report_on
 from mullerbox.errors import BadInputError, RuleError
+from mullerbox.gfn.distribution import Distribution, grade
+from mullerbox.gfn.fineness import fineness_of
 from mullerbox.heat.heat import Disposition, Mold
 from mullerbox.props.kind import PropertyKind
 from mullerbox.spec.pattern import PatternClass
@@ -14,6 +16,8 @@ from mullerbox.units.bulk import Pounds
 from mullerbox.units.percent import Percent
 from mullerbox.units.scales import Permeability
 from tests.defect.helpers import readings, spec_for
+from tests.gfn.helpers import analysis_of
+from tests.gfn.helpers import sheet as bench_sheet
 from tests.heat.helpers import casting, heat, mold
 
 HEAVY = PatternClass.HEAVY_JOBBING
@@ -24,6 +28,21 @@ BAD_SAND = readings(PERMEABILITY=Permeability(40))
 
 def scrapped(name: str, weight: str):  # type: ignore[no-untyped-def]
     return casting(name, weight, Disposition.SCRAPPED)
+
+
+def distribution_of(**held: str) -> Distribution:
+    return grade(fineness_of(analysis_of(bench_sheet(**held), "50.00")))
+
+
+def one_blow_heat(
+    permeability: Permeability | None = None,
+    distribution: Distribution | None = None,
+    defect: DefectKind = DefectKind.BLOW,
+) -> ScrapReport:
+    """A one casting heat scrapped for one defect, for the caveat tests."""
+    built = heat(mold("M-1", pattern=HEAVY, castings=(scrapped("C-1", "100"),)))
+    sand = BAD_SAND if permeability is None else readings(PERMEABILITY=permeability)
+    return report_on(built, {"C-1": (defect,)}, SPECS, sand, distribution)
 
 
 class TestChargingByWeight:
@@ -176,3 +195,33 @@ class TestGuards:
         built = heat(mold("M-1", pattern=HEAVY, castings=(scrapped("C-1", "100"),)))
         got = report_on(built, {"C-1": (DefectKind.BLOW,)}, SPECS, BAD_SAND)
         assert "to sand" in str(got)
+
+
+class TestTheAnalysisReachesTheAttribution:
+    def test_without_one_the_report_says_so(self) -> None:
+        got = one_blow_heat()
+        assert not got.judged_on_analysis
+        assert got.caveat is not None
+        assert "published anchor" in got.caveat
+
+    def test_with_one_it_does_not(self) -> None:
+        got = one_blow_heat(distribution=distribution_of(**{"40": "50.00"}))
+        assert got.judged_on_analysis
+        assert got.caveat is None
+
+    def test_a_heat_with_nothing_on_the_sand_needs_no_caveat(self) -> None:
+        got = one_blow_heat(defect=DefectKind.MISRUN)
+        assert got.weight_charged_to(Culprit.SAND).is_zero
+        assert got.caveat is None
+
+    def test_the_analysis_changes_who_answers_for_the_scrap(self) -> None:
+        coarse = distribution_of(**{"40": "50.00"})
+        without = one_blow_heat(permeability=Permeability(110))
+        with_it = one_blow_heat(permeability=Permeability(110), distribution=coarse)
+        assert without.weight_charged_to(Culprit.SAND).is_zero
+        assert not with_it.weight_charged_to(Culprit.SAND).is_zero
+
+    def test_and_the_property_named_follows(self) -> None:
+        coarse = distribution_of(**{"40": "50.00"})
+        with_it = one_blow_heat(permeability=Permeability(110), distribution=coarse)
+        assert PropertyKind.PERMEABILITY in with_it.properties_implicated

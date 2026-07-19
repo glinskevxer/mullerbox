@@ -363,3 +363,85 @@ class TestMonth:
         )
         assert "casting yield" in result.output
         assert "sand ratio" in result.output
+
+
+SIEVE = "sample,screen,retained,charged\n" + (
+    "S-1,6,0.00,50.00\nS-1,12,0.00,50.00\nS-1,20,0.00,50.00\nS-1,30,0.00,50.00\nS-1,40,50.00,50.00\nS-1,50,0.00,50.00\nS-1,70,0.00,50.00\nS-1,100,0.00,50.00\nS-1,140,0.00,50.00\nS-1,200,0.00,50.00\nS-1,270,0.00,50.00\nS-1,PAN,0.00,50.00\n"
+)
+
+
+def sheet_at(tmp_path: Path, name: str, text: str) -> Path:
+    target = tmp_path / name
+    target.write_text(text, encoding="utf-8")
+    return target
+
+
+def with_sieve(book: Path, tmp_path: Path) -> None:
+    """Put a coarse sieve analysis on sample S-1."""
+    assert run("catalogue", "load-afs", book=book).exit_code == 0
+    loaded = run(
+        "import",
+        "sieve",
+        str(sheet_at(tmp_path, "sieve.csv", SIEVE)),
+        "--series",
+        "AFS US 11 screen",
+        book=book,
+    )
+    assert loaded.exit_code == 0, loaded.output
+
+
+class TestScrapAgainstASieveAnalysis:
+    def test_without_a_sample_the_sheet_warns(self, book: Path, tmp_path: Path) -> None:
+        result = run(
+            "production",
+            "scrap",
+            "H-1",
+            "--inspections",
+            str(sheet_at(tmp_path, "insp.csv", INSPECTIONS)),
+            book=book,
+        )
+        assert result.exit_code == 0, result.output
+        assert "published anchor" in result.output
+
+    def test_with_one_it_names_the_sand_instead(self, book: Path, tmp_path: Path) -> None:
+        with_sieve(book, tmp_path)
+        result = run(
+            "production",
+            "scrap",
+            "H-1",
+            "--inspections",
+            str(sheet_at(tmp_path, "insp.csv", INSPECTIONS)),
+            "--sample",
+            "S-1",
+            book=book,
+        )
+        assert result.exit_code == 0, result.output
+        assert "permeability judged against" in result.output
+        assert "published anchor" not in result.output
+
+    def test_a_sample_with_no_analysis_is_refused(self, book: Path, tmp_path: Path) -> None:
+        result = run(
+            "production",
+            "scrap",
+            "H-1",
+            "--inspections",
+            str(sheet_at(tmp_path, "insp.csv", INSPECTIONS)),
+            "--sample",
+            "S-999",
+            book=book,
+        )
+        assert result.exit_code != 0
+
+    def test_the_summary_line_stays_one_line(self, book: Path, tmp_path: Path) -> None:
+        result = run(
+            "production",
+            "scrap",
+            "H-1",
+            "--inspections",
+            str(sheet_at(tmp_path, "insp.csv", INSPECTIONS)),
+            "--summary",
+            book=book,
+        )
+        assert result.exit_code == 0, result.output
+        assert "published anchor" not in result.output
+        assert result.output.strip().count("\n") == 0
