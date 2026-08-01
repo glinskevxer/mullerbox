@@ -84,19 +84,8 @@ def problems() -> list[str]:
     return found
 
 
-def applies_cleanly() -> list[str]:
-    """Run the whole set against a scratch book and report anything that fails."""
-    try:
-        with open_book() as book:
-            done = migrate(book)
-            if done != [m.version for m in MIGRATIONS]:
-                return [f"applying to an empty book ran {done}, not every migration"]
-            if current_version(book) != len(MIGRATIONS):
-                return ["the book did not reach the last migration"]
-            tables = set(book.tables)
-    except Exception as exc:  # noqa: BLE001 - the gate reports rather than raises
-        return [f"the migrations do not apply: {exc}"]
-    expected = {
+EXPECTED_TABLES: frozenset[str] = frozenset(
+    {
         "schema_migration",
         "screen_series",
         "screen_step",
@@ -123,9 +112,37 @@ def applies_cleanly() -> list[str]:
         "wear_check",
         "pattern",
         "recorded_cycle",
+        "inventory_count",
+        "inventory_vessel",
     }
+)
+
+
+def applies_cleanly() -> list[str]:
+    """Run the whole set against a scratch book and report anything that fails.
+
+    The table list below is written out rather than read off the book, which is
+    the whole point of it. A list derived from the migrations agrees with them
+    by construction and would have passed while a migration silently dropped a
+    table; this one has to be edited by hand when the schema grows, and that
+    edit is the review.
+    """
+    try:
+        with open_book() as book:
+            done = migrate(book, MIGRATIONS)
+            if done != [m.version for m in MIGRATIONS]:
+                return [f"applying to an empty book ran {done}, not every migration"]
+            if current_version(book) != len(MIGRATIONS):
+                return ["the book did not reach the last migration"]
+            tables = set(book.tables)
+    except Exception as exc:  # noqa: BLE001 - the gate reports rather than raises
+        return [f"the migrations do not apply: {exc}"]
+    expected = EXPECTED_TABLES
     missing = sorted(expected - tables)
-    return [f"the schema has no {name!r} table" for name in missing]
+    unnamed = sorted(tables - expected)
+    return [f"the schema has no {name!r} table" for name in missing] + [
+        f"the schema grew a {name!r} table that this gate does not name" for name in unnamed
+    ]
 
 
 def main() -> int:
@@ -141,6 +158,7 @@ def main() -> int:
 
 
 __all__ = [
+    "EXPECTED_TABLES",
     "SHIPPED",
     "applies_cleanly",
     "digest",

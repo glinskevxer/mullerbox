@@ -1,10 +1,18 @@
 from __future__ import annotations
 
-from mullerbox.store.migrations import MIGRATIONS, Migration
+from unittest import mock
+
+import pytest
+
+from mullerbox.store.connection import open_book
+from mullerbox.store.migrations import MIGRATIONS, Migration, migrate
+from mullerbox.tools import check_migrations
 from mullerbox.tools.check_migrations import (
+    EXPECTED_TABLES,
     SHIPPED,
     applies_cleanly,
     digest,
+    main,
     problems,
 )
 
@@ -91,3 +99,83 @@ class TestTheGateActuallyBites:
     def test_a_hash_with_no_migration_would_be_caught(self) -> None:
         stale = set(SHIPPED) - {m.version for m in MIGRATIONS}
         assert stale == set()
+
+
+class TestTheTableListIsWrittenOutOnPurpose:
+    def test_every_table_the_migrations_build_is_named(self) -> None:
+        with open_book() as book:
+            migrate(book)
+            assert set(book.tables) == EXPECTED_TABLES
+
+    def test_a_table_the_gate_does_not_name_is_reported(self) -> None:
+        """The positive control: the unnamed branch has to be able to fire."""
+        shrunk = EXPECTED_TABLES - {"inventory_vessel"}
+        with mock.patch.object(check_migrations, "EXPECTED_TABLES", shrunk):
+            found = applies_cleanly()
+        assert found == ["the schema grew a 'inventory_vessel' table that this gate does not name"]
+
+    def test_a_missing_table_is_reported_too(self) -> None:
+        grown = EXPECTED_TABLES | {"never_created"}
+        with mock.patch.object(check_migrations, "EXPECTED_TABLES", grown):
+            found = applies_cleanly()
+        assert found == ["the schema has no 'never_created' table"]
+
+    def test_the_inventory_tables_are_on_it(self) -> None:
+        assert {"inventory_count", "inventory_vessel"} <= EXPECTED_TABLES
+
+
+class TestTheGateReportsRatherThanRaises:
+    def test_a_migration_that_will_not_apply_comes_back_as_a_line(self) -> None:
+        broken = (*MIGRATIONS, Migration(version=99, name="bad", statements=("NOT SQL",)))
+        with mock.patch.object(check_migrations, "MIGRATIONS", broken):
+            found = applies_cleanly()
+        assert len(found) == 1
+        assert found[0].startswith("the migrations do not apply")
+
+    def test_a_run_that_stops_early_is_reported(self) -> None:
+        """Patching migrate rather than the list, because a short list is legal."""
+
+        def stops_early(book: object, migrations: object = None) -> list[int]:
+            migrate(book, MIGRATIONS[:1])  # type: ignore[arg-type]
+            return [1]
+
+        with mock.patch.object(check_migrations, "migrate", stops_early):
+            found = applies_cleanly()
+        assert found
+        assert "not every migration" in found[0]
+
+    def test_a_book_left_behind_the_last_migration_is_reported(self) -> None:
+        def claims_it_ran(book: object, migrations: object = None) -> list[int]:
+            migrate(book, MIGRATIONS[:1])  # type: ignore[arg-type]
+            return [m.version for m in MIGRATIONS]
+
+        with mock.patch.object(check_migrations, "migrate", claims_it_ran):
+            found = applies_cleanly()
+        assert found == ["the book did not reach the last migration"]
+
+
+class TestTheEntryPoint:
+    def test_it_exits_zero_on_this_package(self, capsys: pytest.CaptureFixture[str]) -> None:
+        assert main() == 0
+        assert "apply cleanly" in capsys.readouterr().out
+
+    def test_it_exits_non_zero_when_something_is_wrong(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with mock.patch.object(check_migrations, "SHIPPED", {}):
+            code = main()
+        assert code == 1
+        assert "migration problems" in capsys.readouterr().out
+
+    def test_it_names_a_changed_migration(self, capsys: pytest.CaptureFixture[str]) -> None:
+        wrong = dict(SHIPPED)
+        wrong[1] = "0000000000000000"
+        with mock.patch.object(check_migrations, "SHIPPED", wrong):
+            main()
+        assert "has changed since it shipped" in capsys.readouterr().out
+
+    def test_it_names_a_hash_with_no_migration(self, capsys: pytest.CaptureFixture[str]) -> None:
+        extra = {**SHIPPED, 99: "0000000000000000"}
+        with mock.patch.object(check_migrations, "SHIPPED", extra):
+            main()
+        assert "has a hash but is not in the list" in capsys.readouterr().out
