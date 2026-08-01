@@ -15,11 +15,13 @@ from __future__ import annotations
 
 import click
 
+from mullerbox.addition.material import Addition, Material
+from mullerbox.addition.order import charge_order
 from mullerbox.burnout.loss import burnout_of
 from mullerbox.burnout.pour import Pour
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
-from mullerbox.cli.parsing import read_date
+from mullerbox.cli.parsing import read_date, read_member
 from mullerbox.errors import NotFoundError
 from mullerbox.muller.cycle import Cycle
 from mullerbox.muller.history import RecordedCycle
@@ -27,6 +29,7 @@ from mullerbox.muller.plan import plan_batch
 from mullerbox.report.layout import Column, Table
 from mullerbox.spec.pattern import parse_pattern_class
 from mullerbox.store import cycle_repo, heat_repo
+from mullerbox.system.state import MassBasis, SandSystem
 from mullerbox.units.bulk import Pounds
 from mullerbox.units.duration import Seconds
 from mullerbox.units.percent import Percent
@@ -245,4 +248,69 @@ def history(context: Context, start: str, end: str, planned_water: str) -> None:
         context.say(finding)
 
 
-__all__ = ["check_cycle", "history", "mulling", "plan", "record"]
+@mulling.command("charge")
+@click.option("--on", "as_of", required=True, help="The shift being charged, yyyy-mm-dd.")
+@click.option("--name", default="the sand system", help="Which sand system.")
+@click.option("--mass", required=True, help="System mass in pounds.")
+@click.option("--basis", default="measured", help="measured or nameplate.")
+@click.option("--inventoried", required=True, help="When the mass was counted, yyyy-mm-dd.")
+@click.option("--batch", "batch_size", required=True, help="Batch mass in pounds.")
+@click.option("--return-f", required=True, help="Return sand temperature, Fahrenheit.")
+@click.option("--dust-rate", default="1.5", help="Collector loss rate, percent.")
+@click.option("--new-sand", default="0", help="New sand for this batch, pounds.")
+@click.option("--bentonite", default="0", help="Bentonite for this batch, pounds.")
+@click.option("--seacoal", default="0", help="Seacoal for this batch, pounds.")
+@click.option("--water", default="0", help="Water for this batch, pounds.")
+@pass_context
+@handle
+def charge(
+    context: Context,
+    as_of: str,
+    name: str,
+    mass: str,
+    basis: str,
+    inventoried: str,
+    batch_size: str,
+    return_f: str,
+    dust_rate: str,
+    new_sand: str,
+    bentonite: str,
+    seacoal: str,
+    water: str,
+) -> None:
+    """Put a batch's additions in the order the muller takes them.
+
+    This refuses a nameplate system mass and a stale inventory. Every addition
+    on the sheet was sized as a share of that figure, so charging against a
+    guess puts the same error on all four at once and leaves no reading that
+    would catch it.
+    """
+    system = SandSystem(
+        name=name,
+        mass=Pounds(mass),
+        basis=read_member(basis, MassBasis, "a mass basis"),
+        established_on=read_date(inventoried),
+        batch_size=Pounds(batch_size),
+        return_temperature=Temperature.fahrenheit(return_f),
+        dust_loss_rate=Percent(dust_rate),
+    )
+    given = (
+        (Material.NEW_SAND, new_sand),
+        (Material.BENTONITE, bentonite),
+        (Material.SEACOAL, seacoal),
+        (Material.WATER, water),
+    )
+    additions = [
+        Addition(material=material, mass=Pounds(amount), reason=f"the {as_of} charge sheet")
+        for material, amount in given
+    ]
+    order = charge_order(system, read_date(as_of), *additions)
+    for line in order.render():
+        context.say(line)
+    context.say("")
+    context.say(str(order))
+    if order.is_dilutive:
+        context.warn("size the bond against the diluted reading, not the one on the bench sheet")
+
+
+__all__ = ["charge", "check_cycle", "history", "mulling", "plan", "record"]

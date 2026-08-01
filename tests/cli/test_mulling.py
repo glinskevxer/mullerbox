@@ -398,3 +398,58 @@ class TestHistory:
         result = run("muller", "history", "--from", "2026-01-01", "--to", "2025-01-01", book=book)
         assert result.exit_code == EXIT_RULE
         assert "backwards" in result.output
+
+
+CHARGE = [
+    "muller",
+    "charge",
+    "--on",
+    WHEN,
+    "--mass",
+    "100000",
+    "--inventoried",
+    "2025-08-25",
+    "--batch",
+    "2000",
+    "--return-f",
+    "120",
+]
+
+
+class TestTheChargeOrder:
+    def test_it_prints_four_steps_in_order(self, book: Path) -> None:
+        result = run(*CHARGE, "--bentonite", "80", "--water", "60", book=book)
+        assert result.exit_code == 0, result.output
+        lines = [line for line in result.output.splitlines() if line[:1].isdigit()]
+        assert lines[0].startswith("1.")
+        assert "new sand" in lines[0]
+        assert "water" in lines[3]
+
+    def test_the_water_waits_for_the_dry_mull(self, book: Path) -> None:
+        result = run(*CHARGE, "--water", "60", book=book)
+        assert "after the dry mull" in result.output
+
+    def test_new_sand_brings_the_dilution_warning(self, book: Path) -> None:
+        result = run(*CHARGE, "--new-sand", "5000", "--bentonite", "80", book=book)
+        assert "dilutes every reading" in result.output
+        assert "not the one on the bench sheet" in result.output
+
+    def test_no_new_sand_brings_none(self, book: Path) -> None:
+        result = run(*CHARGE, "--bentonite", "80", book=book)
+        assert "dilutes" not in result.output
+
+    def test_a_nameplate_mass_is_refused(self, book: Path) -> None:
+        result = run(*CHARGE, "--basis", "nameplate", book=book)
+        assert result.exit_code != 0
+        assert "nameplate mass" in result.output
+
+    def test_a_stale_inventory_is_refused(self, book: Path) -> None:
+        args = list(CHARGE)
+        args[args.index("--inventoried") + 1] = "2024-01-02"
+        result = run(*args, book=book)
+        assert result.exit_code != 0
+        assert "last inventoried" in result.output
+
+    def test_it_totals_the_batch(self, book: Path) -> None:
+        result = run(*CHARGE, "--bentonite", "80", "--seacoal", "30", "--water", "60", book=book)
+        assert "110.00 lb dry and 60.00 lb water" in result.output
