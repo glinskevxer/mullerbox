@@ -12,6 +12,8 @@ BALANCE = [
     "2025-11-10",
     "--mass",
     "300000",
+    "--basis",
+    "measured",
     "--inventoried",
     "2025-09-01",
     "--batch",
@@ -191,6 +193,8 @@ SHEET = [
     "2025-11-10",
     "--mass",
     "300000",
+    "--basis",
+    "measured",
     "--inventoried",
     "2025-09-01",
     "--batch",
@@ -280,3 +284,68 @@ class TestTheCollector:
     def test_a_sample_with_no_analysis(self, book: Path) -> None:
         result = run("system", "collector", "S-9", "--throughput", "100000", book=book)
         assert result.exit_code == EXIT_RULE
+
+
+class TestTheSharedSystemOptions:
+    @pytest.mark.parametrize("command", ["balance", "report", "reconcile"])
+    def test_every_one_of_them_takes_the_same_seven(self, book: Path, command: str) -> None:
+        shown = run("system", command, "--help", book=book)
+        for option in ("--name", "--mass", "--basis", "--inventoried", "--batch"):
+            assert option in shown.output, (command, option)
+        assert "--return-f" in shown.output
+        assert "--dust-rate" in shown.output
+
+    def test_the_muller_charge_takes_them_too(self, book: Path) -> None:
+        shown = run("muller", "charge", "--help", book=book)
+        for option in ("--name", "--mass", "--basis", "--inventoried", "--batch"):
+            assert option in shown.output, option
+
+    @pytest.mark.parametrize("command", ["balance", "report", "reconcile"])
+    def test_the_basis_says_what_nameplate_means(self, book: Path, command: str) -> None:
+        shown = run("system", command, "--help", book=book)
+        assert "nobody counted it" in shown.output
+
+    def test_the_default_is_the_safe_side(self, book: Path) -> None:
+        """A command defaulting to measured lets a guess past the one check for it."""
+        without = [arg for arg in SHEET if arg not in ("--basis", "measured")]
+        result = run("system", "report", *without, book=book)
+        assert "nameplate" in result.output
+
+    def test_an_unknown_basis_is_refused_the_same_way_everywhere(self, book: Path) -> None:
+        result = run(
+            "system",
+            "report",
+            "--on",
+            "2025-11-03",
+            "--mass",
+            "100000",
+            "--basis",
+            "guessed",
+            "--inventoried",
+            "2025-10-06",
+            "--batch",
+            "2000",
+            "--return-f",
+            "120",
+            book=book,
+        )
+        assert result.exit_code != 0
+        assert "a mass basis" in result.output
+
+    def test_the_dust_rate_has_a_default_now(self, book: Path) -> None:
+        result = run(
+            "system",
+            "report",
+            "--on",
+            "2025-11-03",
+            "--mass",
+            "100000",
+            "--inventoried",
+            "2025-10-06",
+            "--batch",
+            "2000",
+            "--return-f",
+            "120",
+            book=book,
+        )
+        assert result.exit_code == 0, result.output

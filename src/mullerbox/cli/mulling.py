@@ -21,7 +21,8 @@ from mullerbox.burnout.loss import burnout_of
 from mullerbox.burnout.pour import Pour
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
-from mullerbox.cli.parsing import read_date, read_member
+from mullerbox.cli.parsing import read_date
+from mullerbox.cli.systemopts import build_system, system_options
 from mullerbox.errors import NotFoundError
 from mullerbox.muller.cycle import Cycle
 from mullerbox.muller.history import RecordedCycle
@@ -29,7 +30,6 @@ from mullerbox.muller.plan import plan_batch
 from mullerbox.report.layout import Column, Table
 from mullerbox.spec.pattern import parse_pattern_class
 from mullerbox.store import cycle_repo, heat_repo
-from mullerbox.system.state import MassBasis, SandSystem
 from mullerbox.units.bulk import Pounds
 from mullerbox.units.duration import Seconds
 from mullerbox.units.percent import Percent
@@ -250,13 +250,7 @@ def history(context: Context, start: str, end: str, planned_water: str) -> None:
 
 @mulling.command("charge")
 @click.option("--on", "as_of", required=True, help="The shift being charged, yyyy-mm-dd.")
-@click.option("--name", default="the sand system", help="Which sand system.")
-@click.option("--mass", required=True, help="System mass in pounds.")
-@click.option("--basis", default="measured", help="measured or nameplate.")
-@click.option("--inventoried", required=True, help="When the mass was counted, yyyy-mm-dd.")
-@click.option("--batch", "batch_size", required=True, help="Batch mass in pounds.")
-@click.option("--return-f", required=True, help="Return sand temperature, Fahrenheit.")
-@click.option("--dust-rate", default="1.5", help="Collector loss rate, percent.")
+@system_options
 @click.option("--new-sand", default="0", help="New sand for this batch, pounds.")
 @click.option("--bentonite", default="0", help="Bentonite for this batch, pounds.")
 @click.option("--seacoal", default="0", help="Seacoal for this batch, pounds.")
@@ -270,7 +264,7 @@ def charge(
     mass: str,
     basis: str,
     inventoried: str,
-    batch_size: str,
+    batch: str,
     return_f: str,
     dust_rate: str,
     new_sand: str,
@@ -285,15 +279,7 @@ def charge(
     guess puts the same error on all four at once and leaves no reading that
     would catch it.
     """
-    system = SandSystem(
-        name=name,
-        mass=Pounds(mass),
-        basis=read_member(basis, MassBasis, "a mass basis"),
-        established_on=read_date(inventoried),
-        batch_size=Pounds(batch_size),
-        return_temperature=Temperature.fahrenheit(return_f),
-        dust_loss_rate=Percent(dust_rate),
-    )
+    system = build_system(name, mass, basis, inventoried, batch, return_f, dust_rate)
     given = (
         (Material.NEW_SAND, new_sand),
         (Material.BENTONITE, bentonite),

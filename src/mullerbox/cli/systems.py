@@ -18,7 +18,8 @@ import click
 
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
-from mullerbox.cli.parsing import read_date, read_decimal, read_member
+from mullerbox.cli.parsing import read_date, read_decimal
+from mullerbox.cli.systemopts import build_system, system_options
 from mullerbox.errors import BadInputError
 from mullerbox.gfn.fineness import fineness_of
 from mullerbox.report.layout import Column, Table, heading
@@ -28,24 +29,8 @@ from mullerbox.system.balance import RESIDUAL_TOLERANCE, Balance
 from mullerbox.system.cooler import cooling_water_for, reachable_temperature
 from mullerbox.system.dust import collector_take, fineness_after
 from mullerbox.system.inventory import Count, Vessel, apply_count, reconcile
-from mullerbox.system.state import MassBasis, SandSystem
 from mullerbox.units.bulk import Pounds
-from mullerbox.units.percent import Percent
 from mullerbox.units.thermal import Temperature
-
-
-def _system(
-    mass: str, basis: str, established: str, batch: str, return_f: str, dust: str
-) -> SandSystem:
-    return SandSystem(
-        name="the sand system",
-        mass=Pounds(mass),
-        basis=read_member(basis, MassBasis, "a mass basis"),
-        established_on=read_date(established),
-        batch_size=Pounds(batch),
-        return_temperature=Temperature.fahrenheit(return_f),
-        dust_loss_rate=Percent(dust),
-    )
 
 
 @main.group("system")
@@ -55,12 +40,7 @@ def systems() -> None:
 
 @systems.command("balance")
 @click.option("--on", "shift_on", required=True, help="yyyy-mm-dd")
-@click.option("--mass", required=True, help="Believed system mass, pounds.")
-@click.option("--basis", default="measured", help="measured or nameplate.")
-@click.option("--inventoried", required=True, help="When the mass was set, yyyy-mm-dd.")
-@click.option("--batch", required=True, help="Muller batch size, pounds.")
-@click.option("--return-f", required=True, help="Return sand temperature, Fahrenheit.")
-@click.option("--dust-rate", required=True, help="Collector loss rate, percent.")
+@system_options
 @click.option("--new-sand", required=True, help="New sand added, pounds.")
 @click.option("--core-return", required=True, help="Core sand returned, pounds.")
 @click.option("--shipped", required=True, help="Sand shipped on castings, pounds.")
@@ -72,6 +52,7 @@ def systems() -> None:
 def balance(
     context: Context,
     shift_on: str,
+    name: str,
     mass: str,
     basis: str,
     inventoried: str,
@@ -86,7 +67,7 @@ def balance(
     throughput: str,
 ) -> None:
     """Strike a shift's sand balance. The residual is reported, never absorbed."""
-    system = _system(mass, basis, inventoried, batch, return_f, dust_rate)
+    system = build_system(name, mass, basis, inventoried, batch, return_f, dust_rate)
     struck = Balance(
         system=system,
         shift_on=read_date(shift_on),
@@ -165,36 +146,22 @@ def cooler(
 
 @systems.command("report")
 @click.option("--on", "as_of", required=True, help="yyyy-mm-dd")
-@click.option("--mass", required=True, help="Believed system mass, pounds.")
-@click.option("--basis", default="measured", help="measured or nameplate.")
-@click.option("--inventoried", required=True, help="When the mass was set, yyyy-mm-dd.")
-@click.option("--batch", required=True, help="Muller batch size, pounds.")
-@click.option("--return-f", required=True, help="Return sand temperature, Fahrenheit.")
-@click.option("--dust-rate", required=True, help="Collector loss rate, percent.")
-@click.option("--name", default="the sand system", help="What to call it.")
+@system_options
 @pass_context
 @handle
 def report(
     context: Context,
     as_of: str,
+    name: str,
     mass: str,
     basis: str,
     inventoried: str,
     batch: str,
     return_f: str,
     dust_rate: str,
-    name: str,
 ) -> None:
     """The system's own sheet, leading with how the mass figure was arrived at."""
-    built = SandSystem(
-        name=name,
-        mass=Pounds(mass),
-        basis=read_member(basis, MassBasis, "a mass basis"),
-        established_on=read_date(inventoried),
-        batch_size=Pounds(batch),
-        return_temperature=Temperature.fahrenheit(return_f),
-        dust_loss_rate=Percent(dust_rate),
-    )
+    built = build_system(name, mass, basis, inventoried, batch, return_f, dust_rate)
     for line in system_report(built, read_date(as_of)).render():
         context.say(line)
 
@@ -335,14 +302,8 @@ def inventory(
 
 
 @systems.command("reconcile")
-@click.option("--name", required=True, help="Which sand system.")
 @click.option("--on", "counted_on", required=True, help="Which count, yyyy-mm-dd.")
-@click.option("--mass", required=True, help="The figure the system was carrying, pounds.")
-@click.option("--basis", default="nameplate", help="measured or nameplate.")
-@click.option("--inventoried", required=True, help="When that figure was set, yyyy-mm-dd.")
-@click.option("--batch", required=True, help="Muller batch size, pounds.")
-@click.option("--return-f", required=True, help="Return sand temperature, Fahrenheit.")
-@click.option("--dust-rate", required=True, help="Collector loss rate, percent.")
+@system_options
 @click.option("--adopt", is_flag=True, help="Write the count in as the system mass.")
 @pass_context
 @handle
@@ -364,15 +325,7 @@ def reconcile_count(
     comes back wearing the measured basis if it is adopted, and everything
     downstream stops asking whether the mass is a guess.
     """
-    system = SandSystem(
-        name=name,
-        mass=Pounds(mass),
-        basis=read_member(basis, MassBasis, "a mass basis"),
-        established_on=read_date(inventoried),
-        batch_size=Pounds(batch),
-        return_temperature=Temperature.fahrenheit(return_f),
-        dust_loss_rate=Percent(dust_rate),
-    )
+    system = build_system(name, mass, basis, inventoried, batch, return_f, dust_rate)
     with context.book() as book:
         count = inventory_repo.load_count(book, name, read_date(counted_on))
     context.say(reconcile(system, count).verdict())

@@ -407,6 +407,8 @@ CHARGE = [
     WHEN,
     "--mass",
     "100000",
+    "--basis",
+    "measured",
     "--inventoried",
     "2025-08-25",
     "--batch",
@@ -439,7 +441,8 @@ class TestTheChargeOrder:
         assert "dilutes" not in result.output
 
     def test_a_nameplate_mass_is_refused(self, book: Path) -> None:
-        result = run(*CHARGE, "--basis", "nameplate", book=book)
+        without = [arg for arg in CHARGE if arg not in ("--basis", "measured")]
+        result = run(*without, book=book)
         assert result.exit_code != 0
         assert "nameplate mass" in result.output
 
