@@ -22,6 +22,7 @@ from mullerbox.cli.parsing import read_date, read_decimal
 from mullerbox.cli.systemopts import build_system, system_options
 from mullerbox.errors import BadInputError
 from mullerbox.gfn.fineness import fineness_of
+from mullerbox.report.inventory import expected_new_sand, inventory_report
 from mullerbox.report.layout import Column, Table, heading
 from mullerbox.report.system import system_report
 from mullerbox.store import inventory_repo, sieve_repo
@@ -344,30 +345,22 @@ def reconcile_count(
 @pass_context
 @handle
 def counts(context: Context, name: str) -> None:
-    """Every inventory taken of a system."""
+    """Every inventory taken of a system, read as a run.
+
+    The latest figure is already on the system record. What this adds is the
+    line through the counts, which is the only thing that says whether the new
+    sand going in matches the sand going out.
+    """
     with context.book() as book:
         dates = inventory_repo.count_dates(book, name)
         rows = [inventory_repo.load_count(book, name, when) for when in dates]
-    if not rows:
-        context.say(f"{name} has never been inventoried")
-        return
-    table = Table(
-        columns=(
-            Column("counted"),
-            Column.number("total"),
-            Column.number("floor share"),
-            Column("state"),
-        )
-    )
-    for count in rows:
-        table.add(
-            str(count.counted_on),
-            str(count.total),
-            f"{count.floor_share:.1%}",
-            "complete" if count.is_complete else "partial",
-        )
-    for line in table.render():
+    report = inventory_report(name, rows)
+    for line in report.render():
         context.say(line)
+    wanted = expected_new_sand(report)
+    if wanted is not None:
+        context.say("")
+        context.say(f"holding it level takes about {wanted} of new sand a year")
 
 
 __all__ = [

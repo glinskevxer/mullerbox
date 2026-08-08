@@ -172,3 +172,68 @@ class TestListing:
     def test_a_partial_count_shows_as_partial(self, book: Path) -> None:
         take(book, "--vessel", "hopper:400:0.50")
         assert "partial" in run("system", "counts", "--name", "two", book=book).output
+
+
+class TestTheCountsRun:
+    def take_on(self, book: Path, when: str, fill: str) -> None:
+        run(
+            "system",
+            "inventory",
+            "--name",
+            "two",
+            "--on",
+            when,
+            "--vessel",
+            f"silo:1000:{fill}:95",
+            book=book,
+        )
+
+    def test_two_counts_are_not_a_trend(self, book: Path) -> None:
+        self.take_on(book, "2025-01-06", "0.80")
+        self.take_on(book, "2025-07-06", "0.75")
+        shown = run("system", "counts", "--name", "two", book=book)
+        assert "is not a trend" in shown.output
+
+    def test_three_counts_read_as_a_loss(self, book: Path) -> None:
+        self.take_on(book, "2025-01-06", "0.80")
+        self.take_on(book, "2025-07-06", "0.75")
+        self.take_on(book, "2026-01-05", "0.70")
+        shown = run("system", "counts", "--name", "two", book=book)
+        assert "losing" in shown.output
+        assert "new sand a year" in shown.output
+
+    def test_a_gaining_system_is_offered_no_figure(self, book: Path) -> None:
+        self.take_on(book, "2025-01-06", "0.70")
+        self.take_on(book, "2025-07-06", "0.75")
+        self.take_on(book, "2026-01-05", "0.80")
+        shown = run("system", "counts", "--name", "two", book=book)
+        assert "gaining" in shown.output
+        assert "new sand a year" not in shown.output
+
+    def test_the_change_column_is_there(self, book: Path) -> None:
+        self.take_on(book, "2025-01-06", "0.80")
+        self.take_on(book, "2025-07-06", "0.75")
+        assert "change" in run("system", "counts", "--name", "two", book=book).output
+
+    def test_a_system_never_counted_still_says_so(self, book: Path) -> None:
+        assert (
+            "never been inventoried" in run("system", "counts", "--name", "two", book=book).output
+        )
+
+    def test_a_partial_count_is_still_plotted(self, book: Path) -> None:
+        run(
+            "system",
+            "inventory",
+            "--name",
+            "two",
+            "--on",
+            "2025-01-06",
+            "--vessel",
+            "silo:1000:0.80:95",
+            "--vessel",
+            "hopper:400:0.50",
+            book=book,
+        )
+        shown = run("system", "counts", "--name", "two", book=book)
+        assert "partial" in shown.output
+        assert "2025-01-06" in shown.output
