@@ -237,3 +237,22 @@ class TestTheCountsRun:
         shown = run("system", "counts", "--name", "two", book=book)
         assert "partial" in shown.output
         assert "2025-01-06" in shown.output
+
+
+class TestRemovingACount:
+    def test_it_comes_off_the_run(self, book: Path) -> None:
+        take(book)
+        removed = run("system", "count-delete", "--name", "two", "--on", "2026-07-15", book=book)
+        assert removed.exit_code == 0, removed.output
+        assert (
+            "never been inventoried" in run("system", "counts", "--name", "two", book=book).output
+        )
+
+    def test_the_day_can_be_counted_again(self, book: Path) -> None:
+        take(book)
+        run("system", "count-delete", "--name", "two", "--on", "2026-07-15", book=book)
+        assert take(book).exit_code == 0  # type: ignore[attr-defined]
+
+    def test_removing_one_that_is_not_there(self, book: Path) -> None:
+        result = run("system", "count-delete", "--name", "two", "--on", "2026-07-15", book=book)
+        assert result.exit_code != 0

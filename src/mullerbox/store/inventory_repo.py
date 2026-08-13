@@ -118,6 +118,12 @@ def latest_count(book: Book, system_name: str, as_of: date) -> Count | None:
     return load_count(book, system_name, date.fromisoformat(str(row["counted_on"])))
 
 
+def counted_systems(book: Book) -> list[str]:
+    """Every system with at least one inventory on the book, by name."""
+    rows = book.all("SELECT DISTINCT system_name FROM inventory_count ORDER BY system_name", ())
+    return [str(row["system_name"]) for row in rows]
+
+
 def delete_count(book: Book, system_name: str, counted_on: date) -> None:
     """Remove one inventory and the vessels under it."""
     if not isinstance(counted_on, date):
@@ -132,4 +138,11 @@ def delete_count(book: Book, system_name: str, counted_on: date) -> None:
             raise NotFoundError(f"inventory of {system_name}", key)
 
 
-__all__ = ["count_dates", "delete_count", "latest_count", "load_count", "save_count"]
+__all__ = [
+    "count_dates",
+    "counted_systems",
+    "delete_count",
+    "latest_count",
+    "load_count",
+    "save_count",
+]

@@ -363,10 +363,30 @@ def counts(context: Context, name: str) -> None:
         context.say(f"holding it level takes about {wanted} of new sand a year")
 
 
+@systems.command("count-delete")
+@click.option("--name", required=True, help="Which sand system.")
+@click.option("--on", "counted_on", required=True, help="Which count, yyyy-mm-dd.")
+@pass_context
+@handle
+def count_delete(context: Context, name: str, counted_on: str) -> None:
+    """Remove one inventory and the vessels under it.
+
+    Counts get taken twice on the same day when two people walk the plant, and
+    the wrong one has to come off rather than sit in the run pulling the trend
+    around. Deleting is the only edit: a count is what somebody measured, and a
+    corrected one is a new count.
+    """
+    when = read_date(counted_on)
+    with context.book() as book:
+        inventory_repo.delete_count(book, name, when)
+    context.say(f"removed the count of {name} on {when}")
+
+
 __all__ = [
     "balance",
     "collector",
     "cooler",
+    "count_delete",
     "counts",
     "inventory",
     "reconcile_count",

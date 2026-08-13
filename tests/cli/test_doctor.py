@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from tests.cli.helpers import initialised, run
 
 WHEN = "2025-12-22"
@@ -34,6 +36,17 @@ def healthy(tmp_path: Path) -> Path:
     )
     run("lab", "sample-add", "S-1", "--on", WHEN, "--point", "muller", "--system", "two", book=book)
     run("lab", "result-add", "S-1", "comp", "42", "--instrument", "RAM-1", "--on", WHEN, book=book)
+    run(
+        "system",
+        "inventory",
+        "--name",
+        "two",
+        "--on",
+        "2025-12-01",
+        "--vessel",
+        "silo:1000:0.80:95",
+        book=book,
+    )
     return book
 
 
@@ -202,3 +215,61 @@ class TestRanking:
         result = run("doctor", "--on", "22/12/2025", book=book)
         assert result.exit_code != 0
         assert "yyyy-mm-dd" in result.output
+
+
+@pytest.fixture
+def counted(tmp_path: Path) -> Path:
+    """A healthy book with its inventory removed, to exercise the new finding."""
+    book = healthy(tmp_path)
+    run("system", "count-delete", "--name", "two", "--on", "2025-12-01", book=book)
+    return book
+
+
+class TestTheInventoryFinding:
+    def take(self, counted: Path, when: str, name: str = "two", complete: bool = True) -> None:
+        args = [
+            "system",
+            "inventory",
+            "--name",
+            name,
+            "--on",
+            when,
+            "--vessel",
+            "silo:1000:0.80:95",
+        ]
+        if not complete:
+            args += ["--vessel", "hopper:400:0.50"]
+        assert run(*args, book=counted).exit_code == 0
+
+    def test_a_book_with_no_count_says_so(self, counted: Path) -> None:
+        shown = run("doctor", "--on", "2026-01-05", book=counted)
+        assert "no sand system has ever been inventoried" in shown.output
+
+    def test_a_fresh_count_raises_nothing(self, counted: Path) -> None:
+        self.take(counted, "2026-01-02")
+        shown = run("doctor", "--on", "2026-01-05", book=counted)
+        assert "inventoried" not in shown.output
+        assert "last counted" not in shown.output
+
+    def test_a_stale_count_is_costing_now(self, counted: Path) -> None:
+        self.take(counted, "2025-01-06")
+        shown = run("doctor", "--on", "2026-01-05", book=counted)
+        assert "last counted 364 days ago" in shown.output
+        assert "costing now" in shown.output
+
+    def test_a_partial_latest_count_is_named(self, counted: Path) -> None:
+        self.take(counted, "2026-01-02", complete=False)
+        shown = run("doctor", "--on", "2026-01-05", book=counted)
+        assert "did not reach hopper" in shown.output
+
+    def test_a_count_only_in_the_future_is_worth_knowing(self, counted: Path) -> None:
+        self.take(counted, "2026-06-01")
+        shown = run("doctor", "--on", "2026-01-05", book=counted)
+        assert "no count on or before 2026-01-05" in shown.output
+
+    def test_each_system_is_read_on_its_own(self, counted: Path) -> None:
+        self.take(counted, "2025-01-06", name="one")
+        self.take(counted, "2026-01-02", name="two")
+        shown = run("doctor", "--on", "2026-01-05", book=counted)
+        assert "one was last counted" in shown.output
+        assert "two was last counted" not in shown.output

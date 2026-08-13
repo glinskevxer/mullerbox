@@ -32,6 +32,7 @@ from mullerbox.report.calibration import calibration_report
 from mullerbox.report.layout import Column, Table
 from mullerbox.store import (
     instrument_repo,
+    inventory_repo,
     price_repo,
     programme_repo,
     reading_repo,
@@ -41,6 +42,7 @@ from mullerbox.store import (
 )
 from mullerbox.store.connection import Book
 from mullerbox.store.migrations import MIGRATIONS, current_version
+from mullerbox.system.state import INVENTORY_STALE_DAYS
 
 
 class Severity(Enum):
@@ -172,7 +174,60 @@ def examine(book: Book, as_of: date) -> list[Finding]:
                     f"{len(overdue)} tests are due, worst is {overdue[0].kind.label}",
                 )
             )
+    found.extend(_inventory_findings(book, as_of))
     found.sort(key=lambda f: (f.severity.rank, f.area, f.detail))
+    return found
+
+
+def _inventory_findings(book: Book, as_of: date) -> list[Finding]:
+    """What the inventory counts on the book say about the mass everything uses.
+
+    The doctor has no system record to read, because a system is passed on the
+    command line rather than kept. What it does have is the counts, and a system
+    nobody has counted in six months is the finding whether or not the record
+    says measured; every addition sized against that figure is wrong by the same
+    proportion and no reading on the book will show it.
+    """
+    found: list[Finding] = []
+    systems = inventory_repo.counted_systems(book)
+    if not systems:
+        return [
+            Finding(
+                Severity.WILL_BITE,
+                "inventory",
+                "no sand system has ever been inventoried",
+            )
+        ]
+    for name in systems:
+        latest = inventory_repo.latest_count(book, name, as_of)
+        if latest is None:
+            found.append(
+                Finding(
+                    Severity.WORTH_KNOWING,
+                    "inventory",
+                    f"{name} has no count on or before {as_of}",
+                )
+            )
+            continue
+        days = (as_of - latest.counted_on).days
+        if days > INVENTORY_STALE_DAYS:
+            found.append(
+                Finding(
+                    Severity.COSTING_NOW,
+                    "inventory",
+                    f"{name} was last counted {days} days ago, past the "
+                    f"{INVENTORY_STALE_DAYS} day limit",
+                )
+            )
+        if not latest.is_complete:
+            missed = ", ".join(v.name for v in latest.uncounted_vessels)
+            found.append(
+                Finding(
+                    Severity.WILL_BITE,
+                    "inventory",
+                    f"the latest count of {name} did not reach {missed}",
+                )
+            )
     return found
 
 
