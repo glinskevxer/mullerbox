@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 import pytest
 
+from mullerbox.cli import parsing
 from tests.cli.helpers import initialised, run
 
 WHEN = "2025-12-22"
@@ -273,3 +275,53 @@ class TestTheInventoryFinding:
         shown = run("doctor", "--on", "2026-01-05", book=counted)
         assert "one was last counted" in shown.output
         assert "two was last counted" not in shown.output
+
+
+class TestTheDefaultDate:
+    def test_it_reads_the_book_as_at_today(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        book = healthy(tmp_path)
+        monkeypatch.setattr(parsing, "today", lambda: date(2025, 12, 22))
+        result = run("doctor", book=book)
+        assert result.exit_code == 0
+        assert "the book is sound as at 2025-12-22" in result.output
+
+    @pytest.mark.parametrize(
+        "frozen",
+        [date(2026, 6, 30), date(2026, 9, 30), date(2026, 12, 31), date(2027, 3, 31)],
+    )
+    def test_the_default_moves_the_findings_with_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, frozen: date
+    ) -> None:
+        """Four days across fifteen months, because a default date is a hidden input."""
+        book = healthy(tmp_path)
+        monkeypatch.setattr(parsing, "today", lambda: frozen)
+        result = run("doctor", book=book)
+        assert result.exit_code == 0
+        days = (frozen - date(2025, 12, 1)).days
+        assert f"last counted {days} days ago" in result.output
+
+    def test_a_given_date_still_wins(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        book = healthy(tmp_path)
+        monkeypatch.setattr(parsing, "today", lambda: date(2027, 3, 31))
+        result = run("doctor", "--on", "2025-12-22", book=book)
+        assert "the book is sound as at 2025-12-22" in result.output
+
+    def test_the_spec_sheet_defaults_the_same_way(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        book = healthy(tmp_path)
+        monkeypatch.setattr(parsing, "today", lambda: date(2026, 6, 30))
+        result = run("spec", "show", "heavy jobbing", book=book)
+        assert result.exit_code == 0, result.output
+        assert "resolved for heavy jobbing" in result.output
+
+    def test_and_a_clock_before_the_sheet_finds_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The positive control: the default has to be able to change the answer."""
+        book = healthy(tmp_path)
+        monkeypatch.setattr(parsing, "today", lambda: date(2024, 1, 1))
+        result = run("spec", "show", "heavy jobbing", book=book)
+        assert result.exit_code != 0

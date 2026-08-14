@@ -30,6 +30,28 @@ _Member = TypeVar("_Member", bound=Enum)
 DATE_FORMAT = "yyyy-mm-dd"
 
 
+def today() -> date:
+    """The one place the command line reads the clock.
+
+    Two commands default a date to today and each read the clock where it
+    stood. That was two reads, both of them inside a command function
+    where nothing can reach them, and it made the default behaviour of those
+    commands the only part of the surface with no test.
+
+    Everything below this line takes a date as an argument, which is the habit
+    the rest of the package keeps: a question about a moment takes the moment.
+    This function is the seam where that habit meets a real clock, and having
+    exactly one of them means the default path can be exercised on any day of
+    the year rather than on whichever day the suite happens to run.
+    """
+    return date.today()
+
+
+def date_or_today(text: str | None, what: str = "a date") -> date:
+    """An option's date, or today when the option was not given."""
+    return read_date(text, what) if text else today()
+
+
 def read_date(text: str, what: str = "a date") -> date:
     """Read an ISO date, naming the format on a refusal."""
     if not isinstance(text, str):
@@ -67,4 +89,4 @@ def read_member(text: str, members: type[_Member], what: str) -> _Member:
         raise BadInputError(f"{text!r} is not {what}; try {known}") from None
 
 
-__all__ = ["DATE_FORMAT", "read_date", "read_decimal", "read_member"]
+__all__ = ["DATE_FORMAT", "date_or_today", "read_date", "read_decimal", "read_member", "today"]

@@ -13,13 +13,11 @@ a real shop replaces it with whatever metallurgy publishes.
 
 from __future__ import annotations
 
-from datetime import date
-
 import click
 
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
-from mullerbox.cli.parsing import read_date
+from mullerbox.cli.parsing import date_or_today, read_date
 from mullerbox.props.kind import PropertyKind
 from mullerbox.report.layout import Column, Table
 from mullerbox.spec.band import Band
@@ -97,7 +95,7 @@ def list_sheets(context: Context) -> None:
 def show(context: Context, pattern: str, as_of: str | None) -> None:
     """Show the bands in force for a pattern class."""
     cls = parse_pattern_class(pattern)
-    when = read_date(as_of) if as_of else date.today()
+    when = date_or_today(as_of)
     with context.book() as book:
         sheet = spec_repo.current_sheet(book, when)
     resolved = resolve(sheet, cls)

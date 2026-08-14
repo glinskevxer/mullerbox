@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from mullerbox.addition.material import Material
 from mullerbox.cal.instrument import InstrumentKind
-from mullerbox.cli.parsing import DATE_FORMAT, read_date, read_decimal, read_member
+from mullerbox.cli import parsing
+from mullerbox.cli.parsing import DATE_FORMAT, date_or_today, read_date, read_decimal, read_member
 from mullerbox.errors import BadInputError
 
 
@@ -88,3 +90,33 @@ class TestTheCommandsAllShareIt:
             if module.name == "parsing.py":
                 continue
             assert "date.fromisoformat" not in module.read_text(), module.name
+
+
+class TestTheClockSeam:
+    def test_a_given_date_is_read(self) -> None:
+        assert date_or_today("2025-11-03") == date(2025, 11, 3)
+
+    def test_nothing_given_falls_back_to_today(self) -> None:
+        assert date_or_today(None) == parsing.today()
+
+    def test_an_empty_string_falls_back_too(self) -> None:
+        assert date_or_today("") == parsing.today()
+
+    def test_a_bad_date_is_still_refused(self) -> None:
+        with pytest.raises(BadInputError, match="yyyy-mm-dd"):
+            date_or_today("03/11/2025")
+
+    def test_the_seam_is_the_only_clock_read(self) -> None:
+        """One place reads the clock, so the default path can be moved."""
+        source = Path(parsing.__file__).read_text(encoding="utf-8")
+        assert source.count("date.today()") == 1
+
+    @pytest.mark.parametrize(
+        "frozen",
+        [date(2025, 1, 1), date(2025, 2, 28), date(2025, 6, 30), date(2025, 12, 31)],
+    )
+    def test_the_default_moves_with_the_clock(
+        self, monkeypatch: pytest.MonkeyPatch, frozen: date
+    ) -> None:
+        monkeypatch.setattr(parsing, "today", lambda: frozen)
+        assert date_or_today(None) == frozen

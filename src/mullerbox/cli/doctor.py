@@ -25,7 +25,7 @@ import click
 from mullerbox.addition.material import Material
 from mullerbox.cli.context import Context, handle, pass_context
 from mullerbox.cli.main import main
-from mullerbox.cli.parsing import read_date
+from mullerbox.cli.parsing import date_or_today
 from mullerbox.errors import NotFoundError, SandError
 from mullerbox.props.kind import PropertyKind
 from mullerbox.report.calibration import calibration_report
@@ -237,7 +237,7 @@ def _inventory_findings(book: Book, as_of: date) -> list[Finding]:
 @handle
 def doctor(context: Context, as_of: str | None) -> None:
     """Walk the book and print what is wrong with it. Changes nothing."""
-    when = read_date(as_of) if as_of else date.today()
+    when = date_or_today(as_of)
     with context.book(migrated=False) as book:
         found = examine(book, when)
     if not found:
