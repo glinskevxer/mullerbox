@@ -24,8 +24,15 @@ from mullerbox.errors import NotFoundError
 from mullerbox.export.writer import write_sheet
 from mullerbox.ingest.bench import COLUMNS as BENCH_COLUMNS
 from mullerbox.props.kind import PropertyKind
+from mullerbox.report.inventory import inventory_report
 from mullerbox.spec.sheet import resolve
-from mullerbox.store import heat_repo, reading_repo, result_repo, spec_repo
+from mullerbox.store import (
+    heat_repo,
+    inventory_repo,
+    reading_repo,
+    result_repo,
+    spec_repo,
+)
 
 
 @main.group("export")
@@ -196,9 +203,51 @@ def export_due(context: Context, path: str, as_of: str) -> None:
     context.say(f"wrote {written} due tests to {path}")
 
 
+@exporting.command("inventory")
+@click.argument("path", type=click.Path())
+@click.option("--name", required=True, help="Which sand system.")
+@pass_context
+@handle
+def export_inventory(context: Context, path: str, name: str) -> None:
+    """Write a system's inventory counts, one row per count.
+
+    The vessels are not written. A count's vessels are the working out, and a
+    sheet that carried them would have a variable number of columns; what the
+    reader wants out of a file like this is the run, which is the totals and
+    whether each one was complete.
+    """
+    with context.book() as book:
+        dates = inventory_repo.count_dates(book, name)
+        counts = [inventory_repo.load_count(book, name, when) for when in dates]
+    report = inventory_report(name, counts)
+    changes = {m.after.counted_on: m.change for m in report.movements}
+    rows = [
+        [
+            name,
+            str(count.counted_on),
+            str(count.total.value),
+            str(count.in_vessels.value),
+            str(count.on_the_floor.value),
+            str(changes.get(count.counted_on, "")),
+            "complete" if count.is_complete else "partial",
+        ]
+        for count in counts
+    ]
+    written = write_sheet(
+        path,
+        ["system", "counted", "total", "in vessels", "on the floor", "change", "state"],
+        rows,
+    )
+    context.say(f"wrote {written} counts to {path}")
+    drift = report.drift_per_year
+    if drift is not None:
+        context.say(f"the run reads {drift:+} lb a year")
+
+
 __all__ = [
     "export_due",
     "export_heats",
+    "export_inventory",
     "export_prices",
     "export_results",
     "export_scrap",

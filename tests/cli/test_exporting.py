@@ -169,3 +169,71 @@ class TestTheScrapExportNamesItsBand:
         target = tmp_path / "scrap.csv"
         result = run("export", "scrap", str(target), "--heat", "H-1", "--sample", "S-9", book=book)
         assert result.exit_code != 0
+
+
+class TestExportingTheInventory:
+    def take(self, book: Path, when: str, fill: str, complete: bool = True) -> None:
+        args = [
+            "system",
+            "inventory",
+            "--name",
+            "two",
+            "--on",
+            when,
+            "--vessel",
+            f"silo:1000:{fill}:95",
+        ]
+        if not complete:
+            args += ["--vessel", "hopper:400:0.50"]
+        assert run(*args, book=book).exit_code == 0
+
+    def test_one_row_per_count(self, book: Path, tmp_path: Path) -> None:
+        self.take(book, "2025-01-06", "0.80")
+        self.take(book, "2025-07-06", "0.75")
+        target = tmp_path / "inv.csv"
+        result = run("export", "inventory", str(target), "--name", "two", book=book)
+        assert result.exit_code == 0, result.output
+        assert "wrote 2 counts" in result.output
+        assert len(target.read_text(encoding="utf-8").strip().splitlines()) == 3
+
+    def test_the_header_names_the_columns(self, book: Path, tmp_path: Path) -> None:
+        self.take(book, "2025-01-06", "0.80")
+        target = tmp_path / "inv.csv"
+        run("export", "inventory", str(target), "--name", "two", book=book)
+        header = target.read_text(encoding="utf-8").splitlines()[0]
+        assert header == "system,counted,total,in vessels,on the floor,change,state"
+
+    def test_the_first_row_has_no_change(self, book: Path, tmp_path: Path) -> None:
+        self.take(book, "2025-01-06", "0.80")
+        self.take(book, "2025-07-06", "0.75")
+        target = tmp_path / "inv.csv"
+        run("export", "inventory", str(target), "--name", "two", book=book)
+        rows = target.read_text(encoding="utf-8").splitlines()
+        assert rows[1].split(",")[5] == ""
+        assert rows[2].split(",")[5].startswith("-")
+
+    def test_a_partial_count_is_marked(self, book: Path, tmp_path: Path) -> None:
+        self.take(book, "2025-01-06", "0.80", complete=False)
+        target = tmp_path / "inv.csv"
+        run("export", "inventory", str(target), "--name", "two", book=book)
+        assert target.read_text(encoding="utf-8").strip().endswith("partial")
+
+    def test_the_run_is_reported_once_there_is_one(self, book: Path, tmp_path: Path) -> None:
+        self.take(book, "2025-01-06", "0.80")
+        self.take(book, "2025-07-06", "0.75")
+        self.take(book, "2026-01-05", "0.70")
+        target = tmp_path / "inv.csv"
+        result = run("export", "inventory", str(target), "--name", "two", book=book)
+        assert "lb a year" in result.output
+
+    def test_a_short_run_reports_no_rate(self, book: Path, tmp_path: Path) -> None:
+        self.take(book, "2025-01-06", "0.80")
+        target = tmp_path / "inv.csv"
+        result = run("export", "inventory", str(target), "--name", "two", book=book)
+        assert "lb a year" not in result.output
+
+    def test_a_system_never_counted_writes_a_header_only(self, book: Path, tmp_path: Path) -> None:
+        target = tmp_path / "inv.csv"
+        result = run("export", "inventory", str(target), "--name", "two", book=book)
+        assert result.exit_code == 0, result.output
+        assert "wrote 0 counts" in result.output
