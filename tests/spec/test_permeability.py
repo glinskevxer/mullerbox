@@ -5,8 +5,7 @@ from decimal import Decimal
 import pytest
 
 from mullerbox.errors import BadInputError
-from mullerbox.gfn.distribution import Grading, grade
-from mullerbox.gfn.fineness import fineness_of
+from mullerbox.gfn.distribution import Grading
 from mullerbox.props.kind import PropertyKind
 from mullerbox.spec.band import Band, Verdict
 from mullerbox.spec.pattern import PatternClass
@@ -17,15 +16,10 @@ from mullerbox.spec.permeability import (
 )
 from mullerbox.spec.sheet import SpecSheet, resolve
 from mullerbox.units.scales import Permeability
-from tests.gfn.helpers import analysis_of
-from tests.gfn.helpers import sheet as bench_sheet
+from tests.gfn.helpers import distribution_of
 from tests.spec.helpers import PUBLISHED, sheet
 
 PERM = PropertyKind.PERMEABILITY
-
-
-def distribution_of(**held: str):  # type: ignore[no-untyped-def]
-    return grade(fineness_of(analysis_of(bench_sheet(**held), "50.00")))
 
 
 def resolved(cls: PatternClass = PatternClass.MEDIUM_JOBBING):  # type: ignore[no-untyped-def]
@@ -135,7 +129,7 @@ class TestGuards:
         with pytest.raises(BadInputError, match="starts from a resolved spec"):
             expected_permeability(sheet(), dist)  # type: ignore[arg-type]
         with pytest.raises(BadInputError, match="needs a graded distribution"):
-            expected_permeability(resolved(), dist.fineness)
+            expected_permeability(resolved(), dist.fineness)  # type: ignore[arg-type]
 
     def test_a_one_ended_anchor_is_refused(self) -> None:
         odd = SpecSheet(

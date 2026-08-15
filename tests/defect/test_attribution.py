@@ -13,8 +13,6 @@ from mullerbox.defect.attribution import (
 )
 from mullerbox.defect.kind import Culprit, DefectKind
 from mullerbox.errors import BadInputError
-from mullerbox.gfn.distribution import grade
-from mullerbox.gfn.fineness import fineness_of
 from mullerbox.props.kind import PropertyKind
 from mullerbox.spec.band import Band, Verdict
 from mullerbox.spec.pattern import PatternClass
@@ -23,17 +21,12 @@ from mullerbox.units.percent import Percent
 from mullerbox.units.pressure import Psi
 from mullerbox.units.scales import Permeability
 from tests.defect.helpers import readings, spec_for
-from tests.gfn.helpers import analysis_of
-from tests.gfn.helpers import sheet as bench_sheet
+from tests.gfn.helpers import distribution_of
 
 HEAVY = PatternClass.HEAVY_JOBBING
 LIGHT = PatternClass.LIGHT_JOBBING
 CORED = PatternClass.CORED_LIGHT
 THIN = PatternClass.THIN_WALL
-
-
-def distribution_of(**held: str):  # type: ignore[no-untyped-def]
-    return grade(fineness_of(analysis_of(bench_sheet(**held), "50.00")))
 
 
 class TestTheClassIsCheckedFirst:

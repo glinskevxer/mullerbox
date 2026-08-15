@@ -7,8 +7,7 @@ import pytest
 from mullerbox.defect.kind import Culprit, DefectKind
 from mullerbox.defect.scrap import ScrapReport, report_on
 from mullerbox.errors import BadInputError, RuleError
-from mullerbox.gfn.distribution import Distribution, grade
-from mullerbox.gfn.fineness import fineness_of
+from mullerbox.gfn.distribution import Distribution
 from mullerbox.heat.heat import Disposition, Mold
 from mullerbox.props.kind import PropertyKind
 from mullerbox.spec.pattern import PatternClass
@@ -16,8 +15,7 @@ from mullerbox.units.bulk import Pounds
 from mullerbox.units.percent import Percent
 from mullerbox.units.scales import Permeability
 from tests.defect.helpers import readings, spec_for
-from tests.gfn.helpers import analysis_of
-from tests.gfn.helpers import sheet as bench_sheet
+from tests.gfn.helpers import distribution_of
 from tests.heat.helpers import casting, heat, mold
 
 HEAVY = PatternClass.HEAVY_JOBBING
@@ -28,10 +26,6 @@ BAD_SAND = readings(PERMEABILITY=Permeability(40))
 
 def scrapped(name: str, weight: str):  # type: ignore[no-untyped-def]
     return casting(name, weight, Disposition.SCRAPPED)
-
-
-def distribution_of(**held: str) -> Distribution:
-    return grade(fineness_of(analysis_of(bench_sheet(**held), "50.00")))
 
 
 def one_blow_heat(
