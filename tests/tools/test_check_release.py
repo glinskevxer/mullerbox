@@ -6,12 +6,16 @@ from typing import Any
 import pytest
 
 import mullerbox
+from mullerbox.cli import main as root
+from mullerbox.tools import check_release
 from mullerbox.tools.check_release import (
     NOT_A_GROUP,
     declared,
+    documented_groups,
     entry_point_problems,
     pin_problems,
     problems,
+    readme_problems,
     registration_problems,
     version_problems,
 )
@@ -127,3 +131,57 @@ class TestRegistration:
         found = module.problems()
         assert len(found) == 1
         assert "there is no pyproject at" in found[0]
+
+
+class TestTheReadmeTable:
+    def test_it_lists_every_command_group(self) -> None:
+        assert readme_problems() == []
+
+    def test_there_is_a_table_to_check(self) -> None:
+        assert len(documented_groups()) >= 15
+
+    def test_every_documented_group_answers_help(self) -> None:
+        for name in documented_groups():
+            assert name in root.commands, name
+
+    def test_a_group_left_out_of_the_table_is_caught(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """The positive control, on a README with one row removed."""
+        text = check_release.README.read_text(encoding="utf-8")
+        thin = tmp_path / "README.md"
+        thin.write_text(
+            "\n".join(line for line in text.splitlines() if not line.startswith("| `system` |")),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(check_release, "README", thin)
+        found = readme_problems()
+        assert found == ["the README command table does not list the 'system' group"]
+
+    def test_a_row_naming_no_group_is_caught_too(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        text = check_release.README.read_text(encoding="utf-8")
+        grown = tmp_path / "README.md"
+        grown.write_text(text + "\n| `sweepings` | not a thing |\n", encoding="utf-8")
+        monkeypatch.setattr(check_release, "README", grown)
+        found = readme_problems()
+        assert found == ["the README command table lists 'sweepings', which is not a command group"]
+
+    def test_a_missing_readme_is_reported_rather_than_raised(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setattr(check_release, "README", tmp_path / "nothing.md")
+        found = readme_problems()
+        assert len(found) == 1
+        assert "there is no README at" in found[0]
+
+    def test_and_the_group_list_comes_back_empty(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setattr(check_release, "README", tmp_path / "nothing.md")
+        assert documented_groups() == set()
+
+    def test_the_helper_modules_are_not_mistaken_for_groups(self) -> None:
+        assert "judging" in check_release.NOT_A_GROUP
+        assert "systemopts" in check_release.NOT_A_GROUP

@@ -16,6 +16,12 @@ turns a reproducible build into one that depends on the day it was installed.
 names an entry point as text, and nothing checks the text resolves until a user
 installs the wheel and types the command.
 
+**The README's command table has to name every group.** That table is the
+first thing anybody reads and it is the easiest thing in the repository to
+leave behind, because adding a group is a code change and the table is not.
+A table missing a group is worse than no table: a reader takes it as the list
+of what the tool does and never types the command that would have helped them.
+
 **Every command group has to be registered.** The CLI package imports its group
 modules for their side effect of attaching to the root, and a new module that
 nobody added to that tuple is a set of commands the built wheel does not have.
@@ -45,7 +51,12 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 CLI_ROOT = PACKAGE_ROOT / "cli"
 
 # Modules in the cli package that are not command groups.
-NOT_A_GROUP = {"__init__", "context", "main", "parsing"}
+NOT_A_GROUP = {"__init__", "context", "judging", "main", "parsing", "systemopts"}
+
+README = REPO_ROOT / "README.md"
+
+# The table row shape, which is how the README lists a group.
+_ROW = re.compile(r"^\| `([a-z-]+)` \|", re.MULTILINE)
 
 
 def declared() -> dict[str, object]:
@@ -131,6 +142,30 @@ def registration_problems() -> list[str]:
     return found
 
 
+def documented_groups() -> set[str]:
+    """Every group named in the README's command table."""
+    if not README.exists():
+        return set()
+    return set(_ROW.findall(README.read_text(encoding="utf-8")))
+
+
+def readme_problems() -> list[str]:
+    """Groups the README does not list, and rows that name no group."""
+    if not README.exists():
+        return [f"there is no README at {README}"]
+    listed = documented_groups()
+    registered = set(root.commands) - {"doctor", "init", "migrate", "status"}
+    found = [
+        f"the README command table does not list the {name!r} group"
+        for name in sorted(registered - listed)
+    ]
+    found.extend(
+        f"the README command table lists {name!r}, which is not a command group"
+        for name in sorted(listed - registered)
+    )
+    return found
+
+
 def problems() -> list[str]:
     """Everything that would only surface at release."""
     try:
@@ -142,6 +177,7 @@ def problems() -> list[str]:
         + pin_problems(data)
         + entry_point_problems(data)
         + registration_problems()
+        + readme_problems()
     )
 
 
@@ -155,7 +191,8 @@ def main() -> int:
         return 1
     print(
         f"version {mullerbox.__version__}, pins exact, entry point resolves, "
-        f"{len(root.commands)} command groups registered"
+        f"{len(root.commands)} command groups registered and "
+        f"{len(documented_groups())} documented"
     )
     return 0
 
@@ -165,12 +202,15 @@ __all__ = [
     "NOT_A_GROUP",
     "PACKAGE_ROOT",
     "PYPROJECT",
+    "README",
     "REPO_ROOT",
     "declared",
+    "documented_groups",
     "entry_point_problems",
     "main",
     "pin_problems",
     "problems",
+    "readme_problems",
     "registration_problems",
     "version_problems",
 ]
