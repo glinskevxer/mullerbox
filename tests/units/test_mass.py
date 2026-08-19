@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
@@ -140,3 +141,28 @@ class TestBooleansAreNotMasses:
     def test_false_is_not_zero_grams(self) -> None:
         with pytest.raises(BadInputError, match="from a boolean"):
             Grams(False)
+
+
+class TestBuildingOneFromAnother:
+    def test_a_mass_from_a_mass_keeps_its_value(self) -> None:
+        assert Grams(Grams("42.50")) == Grams("42.50")
+
+    def test_and_from_one_carrying_a_suffix(self) -> None:
+        assert Grams(Grams("42.50 g")) == Grams("42.50")
+
+    def test_adding_something_that_is_not_a_mass(self) -> None:
+        bad: Any = "1 g"
+        with pytest.raises(TypeError):
+            Grams("1") + bad
+
+    def test_subtracting_something_that_is_not_a_mass(self) -> None:
+        bad: Any = "1 g"
+        with pytest.raises(TypeError):
+            Grams("1") - bad
+
+    def test_subtracting_below_zero_is_refused(self) -> None:
+        with pytest.raises(BadInputError, match="negative mass"):
+            Grams("1") - Grams("2")
+
+    def test_adding_two_masses(self) -> None:
+        assert Grams("1.25") + Grams("2.75") == Grams("4.00")

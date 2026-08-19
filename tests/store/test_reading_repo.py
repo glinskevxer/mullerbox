@@ -16,6 +16,7 @@ from mullerbox.store.instrument_repo import save_instrument
 from mullerbox.store.reading_repo import gather, uncounted
 from mullerbox.store.result_repo import Sample, save_result, save_sample
 from mullerbox.units.percent import Percent
+from mullerbox.units.scales import Permeability
 from tests.store.helpers import migrated_book
 
 GOOD = CalibrationWindow(date(2025, 1, 6), date(2025, 4, 6), "C-1")
@@ -134,3 +135,52 @@ class TestUncounted:
         bad: Any = "2025-05-01"
         with pytest.raises(BadInputError, match="a date is expected"):
             uncounted(book, bad)
+
+
+class TestAReadingWhoseInstrumentIsTheWrongKind:
+    """A permeability read off a rammer is not a slightly odd number."""
+
+    def perm_on(self, book: Book, tag: str, kind: InstrumentKind) -> None:
+        covering = CalibrationWindow(date(2025, 1, 6), date(2025, 4, 6), f"C-{tag}")
+        save_instrument(book, Instrument(tag=tag, kind=kind, windows=(covering,)))
+        save_sample(
+            book,
+            Sample(sample_id="S-9", taken_on=date(2025, 2, 3), point="muller", system_name="two"),
+        )
+        save_result(
+            book,
+            Result(
+                sample_id="S-9",
+                kind=PropertyKind.PERMEABILITY,
+                reading=Permeability(110),
+                instrument_tag=tag,
+                tested_on=date(2025, 2, 3),
+            ),
+        )
+
+    def test_one_on_the_wrong_kind_does_not_count(self, book: Book) -> None:
+        self.perm_on(book, "RAM-2", InstrumentKind.COMPACTABILITY)
+        found = uncounted(book, date(2025, 3, 1))
+        assert [r.instrument_tag for r in found] == ["RAM-2"]
+
+    def test_one_on_the_right_kind_does(self, book: Book) -> None:
+        self.perm_on(book, "PERM-1", InstrumentKind.PERMEABILITY)
+        assert uncounted(book, date(2025, 3, 1)) == []
+
+    def test_an_unknown_instrument_cannot_get_onto_the_book_at_all(self, book: Book) -> None:
+        """The branch above it guards against a row the schema will not accept."""
+        save_sample(
+            book,
+            Sample(sample_id="S-8", taken_on=date(2025, 2, 3), point="muller", system_name="two"),
+        )
+        with pytest.raises(Exception, match="FOREIGN KEY"):
+            save_result(
+                book,
+                Result(
+                    sample_id="S-8",
+                    kind=PropertyKind.PERMEABILITY,
+                    reading=Permeability(110),
+                    instrument_tag="NOBODY",
+                    tested_on=date(2025, 2, 3),
+                ),
+            )
