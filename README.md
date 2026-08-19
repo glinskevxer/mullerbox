@@ -60,17 +60,17 @@ one line.
 | `core` | binder systems, core batches, tensiles |
 | `cost` | material prices, shift cost, budget variance |
 | `export` | writing the book back out as csv |
-| `import` | loading the shop's csv exports |
+| `import` | loading the shop's csv exports, including screen calibration |
 | `lab` | samples, readings, duplicates and cross checks |
 | `material` | incoming lots and their release |
-| `muller` | batch planning and the muller's own log |
+| `muller` | batch planning, the charge order, the muller's own log |
 | `pattern` | the pattern register and pour record checks |
 | `production` | heats, scrap, Pareto and yields |
 | `programme` | how often each property is tested |
 | `report` | shift, exceptions, charts, analysis, what is due |
 | `screens` | sieve wear and stack fitness |
 | `spec` | published sheets and what a revision changes |
-| `system` | mass, balance, cooler and the dust collector |
+| `system` | mass, balance, inventory counts, cooler, dust collector |
 
 ## How it is put together
 

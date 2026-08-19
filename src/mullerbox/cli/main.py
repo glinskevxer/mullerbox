@@ -18,6 +18,8 @@ import click
 
 from mullerbox import __version__
 from mullerbox.cli.context import Context, handle, pass_context, resolve_book
+from mullerbox.report.layout import Column, Table
+from mullerbox.store.connection import Book
 from mullerbox.store.migrations import MIGRATIONS, applied, current_version, migrate
 
 
@@ -48,22 +50,72 @@ def init(context: Context) -> None:
 
 
 @main.command("status")
+@click.option("--verbose", is_flag=True, help="List the migrations that have been applied.")
 @pass_context
 @handle
-def status(context: Context) -> None:
-    """Say what the book is and how far behind the code it is."""
+def status(context: Context, verbose: bool) -> None:
+    """Say what the book is, how far behind the code it is, and what it holds.
+
+    The migration list on its own answers a question nobody has. What somebody
+    typing this actually wants to know is whether they are looking at a book
+    with a shop in it or an empty one, and the schema version cannot tell them:
+    a freshly initialised book and a book with four years of readings are at the
+    same version and print the same line.
+
+    So the counts come first when the schema is current. When it is not, the
+    counts are not printed at all, because the tables they would come from may
+    not be there and a partial answer here reads as a whole one.
+    """
     with context.book(migrated=False) as book:
         at = current_version(book)
         outstanding = [m for m in MIGRATIONS if m.version > at]
         history = applied(book)
+        holdings = [] if outstanding else _holdings(book)
     context.say(f"book: {context.book_path}")
     context.say(f"schema: {at} of {len(MIGRATIONS)}")
-    for version, name in history:
-        context.say(f"  applied {version}: {name}")
+    if verbose:
+        for version, name in history:
+            context.say(f"  applied {version}: {name}")
     if outstanding:
         context.say(f"{len(outstanding)} migrations outstanding, run init")
-    else:
-        context.say("up to date")
+        return
+    context.say("up to date")
+    if not holdings:
+        context.say("the book is empty")
+        return
+    table = Table(columns=(Column("holds"), Column.number("rows")))
+    for label, count in holdings:
+        table.add(label, str(count))
+    for line in table.render():
+        context.say(line)
+
+
+# What is worth counting, in the order somebody reads it. Table names rather
+# than repository calls, because this has to answer on a book whose contents
+# nothing else in the package would load without raising.
+_COUNTED: tuple[tuple[str, str], ...] = (
+    ("samples", "sample"),
+    ("readings", "result"),
+    ("sieve analyses", "sieve_reading"),
+    ("heats", "heat"),
+    ("castings", "casting"),
+    ("spec sheets", "spec_sheet"),
+    ("instruments", "instrument"),
+    ("material lots", "material_lot"),
+    ("muller cycles", "recorded_cycle"),
+    ("inventory counts", "inventory_count"),
+)
+
+
+def _holdings(book: Book) -> list[tuple[str, int]]:
+    """Row counts for the tables worth reporting, skipping the empty ones."""
+    found: list[tuple[str, int]] = []
+    for label, table in _COUNTED:
+        rows = book.scalar(f"SELECT count(*) FROM {table}")  # noqa: S608 - fixed names
+        count = 0 if rows is None else int(str(rows))
+        if count:
+            found.append((label, count))
+    return found
 
 
 @main.command("migrate")

@@ -4,7 +4,9 @@ from pathlib import Path
 
 from mullerbox import __version__
 from mullerbox.cli.context import EXIT_RULE
-from mullerbox.store.migrations import MIGRATIONS
+from mullerbox.cli.main import _COUNTED
+from mullerbox.store.connection import open_book
+from mullerbox.store.migrations import MIGRATIONS, migrate
 from tests.cli.helpers import initialised, run
 
 
@@ -73,7 +75,7 @@ class TestStatus:
 
     def test_it_lists_what_has_been_applied(self, tmp_path: Path) -> None:
         target = initialised(tmp_path)
-        result = run("status", book=target)
+        result = run("status", "--verbose", book=target)
         for migration in MIGRATIONS:
             assert migration.name in result.output
 
@@ -96,3 +98,69 @@ class TestMigrate:
         target = tmp_path / "shop.sqlite3"
         run("migrate", book=target)
         assert "up to date" in run("status", book=target).output
+
+
+class TestStatusSaysWhatTheBookHolds:
+    def test_an_empty_book_says_so(self, tmp_path: Path) -> None:
+        book = initialised(tmp_path)
+        result = run("status", book=book)
+        assert result.exit_code == 0, result.output
+        assert "the book is empty" in result.output
+
+    def test_a_book_with_a_sample_counts_it(self, tmp_path: Path) -> None:
+        book = initialised(tmp_path)
+        run(
+            "lab",
+            "sample-add",
+            "S-1",
+            "--on",
+            "2025-11-03",
+            "--point",
+            "muller",
+            "--system",
+            "two",
+            book=book,
+        )
+        result = run("status", book=book)
+        assert "samples" in result.output
+        assert "the book is empty" not in result.output
+
+    def test_an_empty_table_is_left_off(self, tmp_path: Path) -> None:
+        book = initialised(tmp_path)
+        run(
+            "lab",
+            "sample-add",
+            "S-1",
+            "--on",
+            "2025-11-03",
+            "--point",
+            "muller",
+            "--system",
+            "two",
+            book=book,
+        )
+        result = run("status", book=book)
+        assert "heats" not in result.output
+
+    def test_the_migration_list_is_behind_a_flag(self, tmp_path: Path) -> None:
+        book = initialised(tmp_path)
+        plain = run("status", book=book)
+        assert "applied 1:" not in plain.output
+        verbose = run("status", "--verbose", book=book)
+        assert "applied 1:" in verbose.output
+
+    def test_a_book_behind_the_code_gets_no_counts(self, tmp_path: Path) -> None:
+        """A partial answer here would read as a whole one."""
+        book = tmp_path / "old.sqlite3"
+        with open_book(book) as opened:
+            migrate(opened, MIGRATIONS[:2])
+        result = run("status", book=book)
+        assert "migrations outstanding" in result.output
+        assert "the book is empty" not in result.output
+        assert "holds" not in result.output
+
+    def test_the_counted_tables_all_exist(self, tmp_path: Path) -> None:
+        book = initialised(tmp_path)
+        with open_book(book) as opened:
+            present = set(opened.tables)
+        assert {table for _, table in _COUNTED} <= present
